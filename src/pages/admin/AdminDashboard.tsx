@@ -12,27 +12,21 @@ const AdminDashboard = () => (
     </motion.div>
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <StatCard icon={School} label="Total Schools" value={12} trend="+3 this month" glowClass="neon-glow-purple" delay={0.1} />
-      <StatCard icon={Users} label="Total Teachers" value={84} trend="+12 this month" glowClass="neon-glow-blue" delay={0.2} />
-      <StatCard icon={GraduationCap} label="Total Students" value={1250} trend="+180 this month" glowClass="neon-glow-green" delay={0.3} />
-      <StatCard icon={Activity} label="Active Today" value={340} trend="27% active" glowClass="neon-glow-orange" delay={0.4} />
+      <StatCard icon={School} label="Total Schools" value={0} glowClass="neon-glow-purple" delay={0.1} />
+      <StatCard icon={Users} label="Total Teachers" value={0} glowClass="neon-glow-blue" delay={0.2} />
+      <StatCard icon={GraduationCap} label="Total Students" value={0} glowClass="neon-glow-green" delay={0.3} />
+      <StatCard icon={Activity} label="Active Today" value={0} glowClass="neon-glow-orange" delay={0.4} />
     </div>
 
     <div className="grid md:grid-cols-2 gap-6">
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="glass-card p-6">
         <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-neon-green" /> Top Schools
+          <TrendingUp className="w-5 h-5 text-neon-green" /> Schools
         </h2>
-        <div className="space-y-3">
-          {["Delhi Public School", "Greenwood Academy", "Tech Valley School", "Modern CS Academy", "Digital Minds School"].map((name, i) => (
-            <div key={name} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="font-display text-sm text-primary/60">#{i + 1}</span>
-                <span className="font-body text-sm text-white/80">{name}</span>
-              </div>
-              <span className="text-xs text-neon-green font-body">{Math.floor(Math.random() * 50 + 80)}% active</span>
-            </div>
-          ))}
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <School className="w-12 h-12 text-white/20 mb-4" />
+          <p className="text-white/40 font-body text-sm mb-1">No schools registered yet</p>
+          <p className="text-white/25 font-body text-xs">Create your first school to get started</p>
         </div>
       </motion.div>
 
@@ -40,19 +34,10 @@ const AdminDashboard = () => (
         <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
           <Globe className="w-5 h-5 text-neon-blue" /> Recent Activity
         </h2>
-        <div className="space-y-3">
-          {[
-            "Delhi Public School added 15 students",
-            "Greenwood Academy: Teacher login spike",
-            "Tech Valley completed 50 assignments",
-            "New school registered: Digital Minds",
-            "Platform-wide: 89% assignment completion",
-          ].map((msg, i) => (
-            <div key={i} className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="font-body text-sm text-white/70">{msg}</span>
-            </div>
-          ))}
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Activity className="w-12 h-12 text-white/20 mb-4" />
+          <p className="text-white/40 font-body text-sm mb-1">No activity yet</p>
+          <p className="text-white/25 font-body text-xs">Activity will appear as schools join the platform</p>
         </div>
       </motion.div>
     </div>

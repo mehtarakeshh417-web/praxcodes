@@ -26,18 +26,6 @@ const DEMO_USERS: Record<string, { password: string; user: AuthUser }> = {
     password: "admin",
     user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
   },
-  school1: {
-    password: "school123",
-    user: { id: "2", username: "school1", role: "school", displayName: "Principal Kumar", schoolName: "Delhi Public School" },
-  },
-  teacher1: {
-    password: "teacher123",
-    user: { id: "3", username: "teacher1", role: "teacher", displayName: "Ms. Priya Sharma", schoolName: "Delhi Public School" },
-  },
-  student1: {
-    password: "student123",
-    user: { id: "4", username: "student1", role: "student", displayName: "Arjun Patel", schoolName: "Delhi Public School", className: "6th (A)" },
-  },
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
