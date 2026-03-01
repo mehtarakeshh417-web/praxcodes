@@ -16,16 +16,25 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  addDemoUser: (username: string, password: string, user: AuthUser) => void;
+  changeAdminPassword: (newPassword: string, oldPassword?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Demo users for prototype - will be replaced with Cloud backend
-const DEMO_USERS: Record<string, { password: string; user: AuthUser }> = {
-  admin: {
-    password: "admin",
-    user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
-  },
+const getStoredUsers = (): Record<string, { password: string; user: AuthUser }> => {
+  const stored = sessionStorage.getItem("praxcodes_demo_users");
+  if (stored) return JSON.parse(stored);
+  return {
+    admin: {
+      password: "admin",
+      user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
+    },
+  };
+};
+
+const saveUsers = (users: Record<string, { password: string; user: AuthUser }>) => {
+  sessionStorage.setItem("praxcodes_demo_users", JSON.stringify(users));
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -33,9 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const stored = sessionStorage.getItem("praxcodes_user");
     return stored ? JSON.parse(stored) : null;
   });
+  const [demoUsers, setDemoUsers] = useState(getStoredUsers);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
-    const entry = DEMO_USERS[username];
+    const current = getStoredUsers();
+    const entry = current[username];
     if (entry && entry.password === password) {
       setUser(entry.user);
       sessionStorage.setItem("praxcodes_user", JSON.stringify(entry.user));
@@ -49,8 +60,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem("praxcodes_user");
   }, []);
 
+  const addDemoUser = useCallback((username: string, password: string, userData: AuthUser) => {
+    setDemoUsers((prev) => {
+      const updated = { ...prev, [username]: { password, user: userData } };
+      saveUsers(updated);
+      return updated;
+    });
+  }, []);
+
+  const changeAdminPassword = useCallback((newPassword: string, oldPassword?: string): boolean => {
+    const current = getStoredUsers();
+    if (oldPassword && current.admin?.password !== oldPassword) return false;
+    current.admin = { ...current.admin, password: newPassword };
+    saveUsers(current);
+    setDemoUsers(current);
+    return true;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, changeAdminPassword }}>
       {children}
     </AuthContext.Provider>
   );

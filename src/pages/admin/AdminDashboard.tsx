@@ -1,8 +1,11 @@
 import { motion } from "framer-motion";
 import StatCard from "@/components/StatCard";
+import { useData } from "@/contexts/DataContext";
 import { School, Users, GraduationCap, Activity, TrendingUp, Globe } from "lucide-react";
 
-const AdminDashboard = () => (
+const AdminDashboard = () => {
+  const { schools, teachers, students } = useData();
+  return (
   <div>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <h1 className="font-display text-3xl font-bold mb-1">
@@ -12,9 +15,9 @@ const AdminDashboard = () => (
     </motion.div>
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <StatCard icon={School} label="Total Schools" value={0} glowClass="neon-glow-purple" delay={0.1} />
-      <StatCard icon={Users} label="Total Teachers" value={0} glowClass="neon-glow-blue" delay={0.2} />
-      <StatCard icon={GraduationCap} label="Total Students" value={0} glowClass="neon-glow-green" delay={0.3} />
+      <StatCard icon={School} label="Total Schools" value={schools.length} glowClass="neon-glow-purple" delay={0.1} />
+      <StatCard icon={Users} label="Total Teachers" value={teachers.length} glowClass="neon-glow-blue" delay={0.2} />
+      <StatCard icon={GraduationCap} label="Total Students" value={students.length} glowClass="neon-glow-green" delay={0.3} />
       <StatCard icon={Activity} label="Active Today" value={0} glowClass="neon-glow-orange" delay={0.4} />
     </div>
 
@@ -42,6 +45,7 @@ const AdminDashboard = () => (
       </motion.div>
     </div>
   </div>
-);
+  );
+};
 
 export default AdminDashboard;

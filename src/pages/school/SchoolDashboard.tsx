@@ -1,10 +1,15 @@
 import { motion } from "framer-motion";
 import StatCard from "@/components/StatCard";
 import { useAuth } from "@/contexts/AuthContext";
+import { useData } from "@/contexts/DataContext";
 import { Users, GraduationCap, BookOpen, Activity, ClipboardList, BarChart3 } from "lucide-react";
 
 const SchoolDashboard = () => {
   const { user } = useAuth();
+  const { getSchoolTeachers, getSchoolStudents } = useData();
+  const schoolId = user?.id || "";
+  const teachers = getSchoolTeachers(schoolId);
+  const students = getSchoolStudents(schoolId);
   return (
     <div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -15,10 +20,10 @@ const SchoolDashboard = () => {
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard icon={Users} label="Teachers" value={7} glowClass="neon-glow-blue" delay={0.1} />
-        <StatCard icon={GraduationCap} label="Students" value={128} trend="+22 this term" glowClass="neon-glow-green" delay={0.2} />
-        <StatCard icon={BookOpen} label="Active Classes" value={8} glowClass="neon-glow-purple" delay={0.3} />
-        <StatCard icon={Activity} label="Today's Logins" value={45} trend="35% rate" glowClass="neon-glow-orange" delay={0.4} />
+        <StatCard icon={Users} label="Teachers" value={teachers.length} glowClass="neon-glow-blue" delay={0.1} />
+        <StatCard icon={GraduationCap} label="Students" value={students.length} glowClass="neon-glow-green" delay={0.2} />
+        <StatCard icon={BookOpen} label="Active Classes" value={0} glowClass="neon-glow-purple" delay={0.3} />
+        <StatCard icon={Activity} label="Today's Logins" value={0} glowClass="neon-glow-orange" delay={0.4} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
