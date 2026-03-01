@@ -21,7 +21,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { icon: School, label: "Schools", path: "/dashboard/schools" },
     { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
     { icon: Trophy, label: "Leaderboard", path: "/dashboard/leaderboard" },
-    { icon: Settings, label: "Settings", path: "/dashboard/settings" },
+    { icon: Settings, label: "Change Password", path: "/dashboard/settings" },
   ],
   school: [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -38,6 +38,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { icon: Code, label: "Projects", path: "/dashboard/projects" },
     { icon: Sparkles, label: "AI Generator", path: "/dashboard/ai-generator" },
     { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
+    { icon: Settings, label: "Change Password", path: "/dashboard/settings" },
   ],
   student: [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -47,6 +48,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { icon: Gamepad2, label: "Achievements", path: "/dashboard/achievements" },
     { icon: Trophy, label: "Leaderboard", path: "/dashboard/leaderboard" },
     { icon: Award, label: "Certificates", path: "/dashboard/certificates" },
+    { icon: Settings, label: "Change Password", path: "/dashboard/settings" },
   ],
 };
 

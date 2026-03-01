@@ -15,7 +15,7 @@ const SchoolTeachers = () => {
   const { addTeacher, getSchoolTeachers } = useData();
   const { addDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", classes: [] as string[] });
+  const [form, setForm] = useState({ firstName: "", lastName: "", classes: [] as string[], username: "", password: "" });
 
   const schoolId = user?.id || "";
   const teachers = getSchoolTeachers(schoolId);
@@ -27,13 +27,15 @@ const SchoolTeachers = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.firstName || !form.lastName || form.classes.length === 0) { toast.error("Fill all fields and select at least one class"); return; }
-    const teacher = addTeacher({ ...form, schoolId });
+    const customUsername = form.username.trim() || undefined;
+    const customPassword = form.password.trim() || undefined;
+    const teacher = addTeacher({ ...form, schoolId }, customUsername, customPassword);
     addDemoUser(teacher.username, teacher.password, {
       id: teacher.id, username: teacher.username, role: "teacher",
       displayName: `${form.firstName} ${form.lastName}`, schoolName: user?.schoolName || user?.displayName,
     });
     toast.success(`Teacher created! Username: ${teacher.username} | Password: ${teacher.password}`);
-    setForm({ firstName: "", lastName: "", classes: [] });
+    setForm({ firstName: "", lastName: "", classes: [], username: "", password: "" });
     setShowForm(false);
   };
 
@@ -57,11 +59,21 @@ const SchoolTeachers = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-white/70">First Name *</Label>
-                <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="First name" className="bg-white/5 border-white/10 text-white" />
+                <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="First name" className="bg-white/10 border-white/20 text-white placeholder:text-white/30" />
               </div>
               <div className="space-y-2">
                 <Label className="text-white/70">Last Name *</Label>
-                <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder="Last name" className="bg-white/5 border-white/10 text-white" />
+                <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder="Last name" className="bg-white/10 border-white/20 text-white placeholder:text-white/30" />
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-white/70">Username (auto if blank)</Label>
+                <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="Auto-generated if left blank" className="bg-white/10 border-white/20 text-white placeholder:text-white/30" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Password (auto if blank)</Label>
+                <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Auto-generated if left blank" className="bg-white/10 border-white/20 text-white placeholder:text-white/30" />
               </div>
             </div>
             <div className="space-y-2">
