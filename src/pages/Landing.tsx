@@ -130,25 +130,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Demo credentials */}
-      <section className="relative z-10 container mx-auto px-6 pb-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="glass-card p-8 max-w-2xl mx-auto text-center"
-        >
-          <h3 className="font-display text-xl font-bold text-gradient-brand mb-4">Demo Access</h3>
-          <div className="grid grid-cols-1 max-w-xs mx-auto gap-4 text-sm font-body">
-            <div className="bg-white/5 rounded-xl p-3">
-              <div className="text-primary font-bold mb-1">Master Admin</div>
-              <div className="text-white/50">admin</div>
-              <div className="text-white/40 text-xs">admin</div>
-            </div>
-            <p className="text-white/30 text-xs">Other roles (School, Teacher, Student) are created by the admin after login.</p>
-          </div>
-        </motion.div>
-      </section>
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-8 text-white/30 text-sm font-body border-t border-white/5">
