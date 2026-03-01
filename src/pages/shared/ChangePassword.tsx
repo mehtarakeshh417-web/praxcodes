@@ -36,10 +36,10 @@ const ChangePassword = () => {
     <div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h1 className="font-display text-3xl font-bold mb-1"><span className="text-gradient-purple">{roleLabel}</span> Change Password</h1>
-        <p className="text-white/50 font-body mb-8">Update your account password</p>
+        <p className="text-white/60 font-body mb-8">Update your account password</p>
       </motion.div>
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-6 max-w-lg">
-        <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2"><Lock className="w-5 h-5 text-neon-blue" /> Change Password</h2>
+        <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white"><Lock className="w-5 h-5 text-neon-blue" /> Change Password</h2>
         {!method ? (
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setMethod("old")}>Using Old Password</Button>
@@ -49,19 +49,19 @@ const ChangePassword = () => {
           <div className="space-y-4">
             {method === "old" && (
               <div className="space-y-2">
-                <Label className="text-white/70">Old Password</Label>
-                <Input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="bg-white/10 border-white/20 text-white" />
+                <Label className="text-white/80 font-body font-medium">Old Password</Label>
+                <Input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
               </div>
             )}
             {method === "pin" && (
               <div className="space-y-2">
-                <Label className="text-white/70">Secret PIN</Label>
-                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className="bg-white/10 border-white/20 text-white" />
+                <Label className="text-white/80 font-body font-medium">Secret PIN</Label>
+                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
               </div>
             )}
             <div className="space-y-2">
-              <Label className="text-white/70">New Password</Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-white/10 border-white/20 text-white" />
+              <Label className="text-white/80 font-body font-medium">New Password</Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
             </div>
             <div className="flex gap-3">
               <Button variant="ghost" onClick={reset}>Cancel</Button>

@@ -17,6 +17,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   addDemoUser: (username: string, password: string, user: AuthUser) => void;
+  removeDemoUser: (username: string) => void;
+  removeDemoUsers: (usernames: string[]) => void;
   changeAdminPassword: (newPassword: string, oldPassword?: string) => boolean;
   changePassword: (newPassword: string, oldPassword?: string) => boolean;
 }
@@ -69,6 +71,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const removeDemoUser = useCallback((username: string) => {
+    setDemoUsers((prev) => {
+      const updated = { ...prev };
+      delete updated[username];
+      saveUsers(updated);
+      return updated;
+    });
+  }, []);
+
+  const removeDemoUsers = useCallback((usernames: string[]) => {
+    setDemoUsers((prev) => {
+      const updated = { ...prev };
+      usernames.forEach((u) => delete updated[u]);
+      saveUsers(updated);
+      return updated;
+    });
+  }, []);
+
   const changeAdminPassword = useCallback((newPassword: string, oldPassword?: string): boolean => {
     const current = getStoredUsers();
     if (oldPassword && current.admin?.password !== oldPassword) return false;
@@ -91,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, changeAdminPassword, changePassword }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, removeDemoUser, removeDemoUsers, changeAdminPassword, changePassword }}>
       {children}
     </AuthContext.Provider>
   );
