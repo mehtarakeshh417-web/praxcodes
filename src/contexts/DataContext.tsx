@@ -43,8 +43,8 @@ interface DataContextType {
   teachers: TeacherData[];
   students: StudentData[];
   addSchool: (school: Omit<SchoolData, "id" | "createdAt">) => SchoolData;
-  addTeacher: (teacher: Omit<TeacherData, "id" | "createdAt" | "username" | "password">) => TeacherData;
-  addStudent: (student: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">) => StudentData;
+  addTeacher: (teacher: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => TeacherData;
+  addStudent: (student: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => StudentData;
   addStudentsBulk: (students: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">[]) => StudentData[];
   getSchoolTeachers: (schoolId: string) => TeacherData[];
   getSchoolStudents: (schoolId: string) => StudentData[];
@@ -70,24 +70,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return school;
   }, []);
 
-  const addTeacher = useCallback((data: Omit<TeacherData, "id" | "createdAt" | "username" | "password">) => {
+  const addTeacher = useCallback((data: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => {
     const teacher: TeacherData = {
       ...data,
       id: crypto.randomUUID(),
-      username: generateUsername("tchr", data.firstName, teachers.length + 1),
-      password: generatePassword(),
+      username: customUsername || generateUsername("tchr", data.firstName, teachers.length + 1),
+      password: customPassword || generatePassword(),
       createdAt: new Date().toISOString(),
     };
     setTeachers((prev) => [...prev, teacher]);
     return teacher;
   }, [teachers.length]);
 
-  const addStudent = useCallback((data: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">) => {
+  const addStudent = useCallback((data: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => {
     const student: StudentData = {
       ...data,
       id: crypto.randomUUID(),
-      username: generateUsername("std", data.name, students.length + 1),
-      password: generatePassword(),
+      username: customUsername || generateUsername("std", data.name, students.length + 1),
+      password: customPassword || generatePassword(),
       xp: 0,
       progress: 0,
       createdAt: new Date().toISOString(),

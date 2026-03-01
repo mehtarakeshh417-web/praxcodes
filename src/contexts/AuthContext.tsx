@@ -18,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   addDemoUser: (username: string, password: string, user: AuthUser) => void;
   changeAdminPassword: (newPassword: string, oldPassword?: string) => boolean;
+  changePassword: (newPassword: string, oldPassword?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -77,8 +78,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   }, []);
 
+  const changePassword = useCallback((newPassword: string, oldPassword?: string): boolean => {
+    if (!user) return false;
+    const current = getStoredUsers();
+    const entry = current[user.username];
+    if (!entry) return false;
+    if (oldPassword && entry.password !== oldPassword) return false;
+    current[user.username] = { ...entry, password: newPassword };
+    saveUsers(current);
+    setDemoUsers(current);
+    return true;
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, changeAdminPassword }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, changeAdminPassword, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

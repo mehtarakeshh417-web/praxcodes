@@ -18,6 +18,7 @@ import TeacherAssignments from "./teacher/TeacherAssignments";
 import TeacherProjects from "./teacher/TeacherProjects";
 import TeacherAIGenerator from "./teacher/TeacherAIGenerator";
 import TeacherAnalytics from "./teacher/TeacherAnalytics";
+import ChangePassword from "./shared/ChangePassword";
 import StudentDashboard from "./student/StudentDashboard";
 import StudentCurriculum from "./student/StudentCurriculum";
 import StudentAssignments from "./student/StudentAssignments";
@@ -55,6 +56,7 @@ const teacherRoutes = (
     <Route path="projects" element={<TeacherProjects />} />
     <Route path="ai-generator" element={<TeacherAIGenerator />} />
     <Route path="analytics" element={<TeacherAnalytics />} />
+    <Route path="settings" element={<ChangePassword />} />
   </>
 );
 
@@ -67,6 +69,7 @@ const studentRoutes = (
     <Route path="achievements" element={<StudentAchievements />} />
     <Route path="leaderboard" element={<StudentLeaderboard />} />
     <Route path="certificates" element={<StudentCertificates />} />
+    <Route path="settings" element={<ChangePassword />} />
   </>
 );
 
