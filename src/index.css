@@ -127,7 +127,11 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl;
+    @apply bg-[hsl(220,28%,14%)] backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl;
+  }
+
+  .glass-card-light {
+    @apply bg-[hsl(220,25%,18%)] backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl;
   }
 
   .neon-glow-blue {
@@ -183,6 +187,10 @@
 
   .stat-card {
     @apply glass-card p-6 hover:scale-105 transition-all duration-300 cursor-pointer;
+  }
+
+  .card-row {
+    @apply bg-[hsl(220,25%,16%)] border border-white/10 rounded-xl px-4 py-3;
   }
 
   .sidebar-dark {

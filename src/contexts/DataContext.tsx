@@ -26,6 +26,7 @@ export interface TeacherData {
 export interface StudentData {
   id: string;
   schoolId: string;
+  teacherId: string;
   name: string;
   fatherName: string;
   class: string;
@@ -46,8 +47,12 @@ interface DataContextType {
   addTeacher: (teacher: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => TeacherData;
   addStudent: (student: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => StudentData;
   addStudentsBulk: (students: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">[]) => StudentData[];
+  deleteSchool: (schoolId: string) => string[]; // returns removed usernames
+  deleteTeacher: (teacherId: string) => { success: boolean; removedUsernames: string[]; error?: string };
+  deleteStudent: (studentId: string) => string | null; // returns removed username
   getSchoolTeachers: (schoolId: string) => TeacherData[];
   getSchoolStudents: (schoolId: string) => StudentData[];
+  getTeacherStudents: (teacherId: string) => StudentData[];
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -110,11 +115,46 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return created;
   }, [students.length]);
 
+  // Cascading delete: removes school + all its teachers + all its students
+  const deleteSchool = useCallback((schoolId: string): string[] => {
+    const removedUsernames: string[] = [];
+    const school = schools.find((s) => s.id === schoolId);
+    if (school) removedUsernames.push(school.username);
+    const schoolTeachers = teachers.filter((t) => t.schoolId === schoolId);
+    schoolTeachers.forEach((t) => removedUsernames.push(t.username));
+    const schoolStudents = students.filter((s) => s.schoolId === schoolId);
+    schoolStudents.forEach((s) => removedUsernames.push(s.username));
+    setSchools((prev) => prev.filter((s) => s.id !== schoolId));
+    setTeachers((prev) => prev.filter((t) => t.schoolId !== schoolId));
+    setStudents((prev) => prev.filter((s) => s.schoolId !== schoolId));
+    return removedUsernames;
+  }, [schools, teachers, students]);
+
+  // Delete teacher: block if students are assigned, or cascade
+  const deleteTeacher = useCallback((teacherId: string): { success: boolean; removedUsernames: string[]; error?: string } => {
+    const teacher = teachers.find((t) => t.id === teacherId);
+    if (!teacher) return { success: false, removedUsernames: [], error: "Teacher not found" };
+    const assignedStudents = students.filter((s) => s.teacherId === teacherId);
+    if (assignedStudents.length > 0) {
+      return { success: false, removedUsernames: [], error: `Cannot delete: ${assignedStudents.length} student(s) are assigned to this teacher. Reassign them first.` };
+    }
+    setTeachers((prev) => prev.filter((t) => t.id !== teacherId));
+    return { success: true, removedUsernames: [teacher.username] };
+  }, [teachers, students]);
+
+  const deleteStudent = useCallback((studentId: string): string | null => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return null;
+    setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    return student.username;
+  }, [students]);
+
   const getSchoolTeachers = useCallback((schoolId: string) => teachers.filter((t) => t.schoolId === schoolId), [teachers]);
   const getSchoolStudents = useCallback((schoolId: string) => students.filter((s) => s.schoolId === schoolId), [students]);
+  const getTeacherStudents = useCallback((teacherId: string) => students.filter((s) => s.teacherId === teacherId), [students]);
 
   return (
-    <DataContext.Provider value={{ schools, teachers, students, addSchool, addTeacher, addStudent, addStudentsBulk, getSchoolTeachers, getSchoolStudents }}>
+    <DataContext.Provider value={{ schools, teachers, students, addSchool, addTeacher, addStudent, addStudentsBulk, deleteSchool, deleteTeacher, deleteStudent, getSchoolTeachers, getSchoolStudents, getTeacherStudents }}>
       {children}
     </DataContext.Provider>
   );
