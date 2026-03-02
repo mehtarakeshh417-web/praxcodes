@@ -92,10 +92,8 @@ const DashboardLayout = ({ children }: Props) => {
       >
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-cyber-darker" />
-            </div>
-            <span className="font-display text-lg font-bold text-gradient-brand">PraxCodes</span>
+            <img src="/assets/logo.jpg" alt="CodeChamps logo" className="w-10 h-10 rounded-xl object-contain" />
+            <span className="font-display text-lg font-bold text-gradient-brand">CodeChamps</span>
           </div>
           <div className="flex items-center gap-2 mt-4">
             <UserCircle className="w-8 h-8 text-white/40" />

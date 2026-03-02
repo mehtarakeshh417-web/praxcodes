@@ -26,7 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const getStoredUsers = (): Record<string, { password: string; user: AuthUser }> => {
-  const stored = sessionStorage.getItem("praxcodes_demo_users");
+  const stored = sessionStorage.getItem("codechamps_users");
   if (stored) return JSON.parse(stored);
   return {
     admin: {
@@ -37,12 +37,12 @@ const getStoredUsers = (): Record<string, { password: string; user: AuthUser }> 
 };
 
 const saveUsers = (users: Record<string, { password: string; user: AuthUser }>) => {
-  sessionStorage.setItem("praxcodes_demo_users", JSON.stringify(users));
+  sessionStorage.setItem("codechamps_users", JSON.stringify(users));
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = sessionStorage.getItem("praxcodes_user");
+    const stored = sessionStorage.getItem("codechamps_user");
     return stored ? JSON.parse(stored) : null;
   });
   const [demoUsers, setDemoUsers] = useState(getStoredUsers);
@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const entry = current[username];
     if (entry && entry.password === password) {
       setUser(entry.user);
-      sessionStorage.setItem("praxcodes_user", JSON.stringify(entry.user));
+      sessionStorage.setItem("codechamps_user", JSON.stringify(entry.user));
       return true;
     }
     return false;
@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     setUser(null);
-    sessionStorage.removeItem("praxcodes_user");
+    sessionStorage.removeItem("codechamps_user");
   }, []);
 
   const addDemoUser = useCallback((username: string, password: string, userData: AuthUser) => {
