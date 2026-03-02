@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ParticleBackground from "@/components/ParticleBackground";
 import heroBg from "@/assets/hero-bg.jpg";
-import { Code, Gamepad2, GraduationCap, Shield, Sparkles, Trophy, Zap } from "lucide-react";
+import { Code, Gamepad2, GraduationCap, Shield, Trophy, Zap } from "lucide-react";
+import logo from "@/assets/logo.jpg";
 
 const features = [
   { icon: GraduationCap, title: "Smart Curriculum", desc: "Class-wise structured CS education from Class 1 to 8", color: "neon-glow-blue" },
@@ -28,10 +29,8 @@ const Landing = () => {
         className="relative z-10 flex items-center justify-between px-6 md:px-12 py-4"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center neon-glow-blue">
-            <Sparkles className="w-5 h-5 text-cyber-darker" />
-          </div>
-          <span className="font-display text-xl font-bold text-gradient-brand">PraxCodes</span>
+          <img src={logo} alt="CodeChamps logo" className="w-10 h-10 rounded-xl object-contain" />
+          <span className="font-display text-xl font-bold text-gradient-brand">CodeChamps</span>
         </div>
         <Button variant="hero" size="lg" onClick={() => navigate("/login")}>
           Login
@@ -58,7 +57,7 @@ const Landing = () => {
               <span className="text-gradient-fire">Schools</span>
             </h1>
             <p className="font-body text-lg text-white/70 mb-8 max-w-lg">
-              PraxCodes transforms computer science teaching with XP systems, AI assignments, live coding sandboxes, and class-wise curriculum — from Class 1 to 8.
+              CodeChamps transforms computer science teaching with XP systems, AI assignments, live coding sandboxes, and class-wise curriculum — from Class 1 to 8.
             </p>
             <div className="flex flex-wrap gap-4">
               <Button variant="hero" size="xl" onClick={() => navigate("/login")}>
@@ -77,26 +76,9 @@ const Landing = () => {
             className="relative"
           >
             <div className="relative rounded-2xl overflow-hidden neon-glow-blue">
-              <img src={heroBg} alt="PraxCodes gamified classroom" className="w-full rounded-2xl" />
+              <img src={heroBg} alt="CodeChamps gamified classroom" className="w-full rounded-2xl" />
               <div className="absolute inset-0 bg-gradient-to-t from-cyber-darker/60 to-transparent" />
             </div>
-            {/* Floating stat cards */}
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className="absolute -top-4 -right-4 glass-card px-4 py-3 neon-glow-green"
-            >
-              <div className="text-neon-green font-display text-2xl font-bold">1250+</div>
-              <div className="text-xs text-white/60">Active Students</div>
-            </motion.div>
-            <motion.div
-              animate={{ y: [0, 10, 0] }}
-              transition={{ duration: 4, repeat: Infinity }}
-              className="absolute -bottom-4 -left-4 glass-card px-4 py-3 neon-glow-purple"
-            >
-              <div className="text-neon-purple font-display text-2xl font-bold">50+</div>
-              <div className="text-xs text-white/60">Schools Onboarded</div>
-            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -133,7 +115,7 @@ const Landing = () => {
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-8 text-white/30 text-sm font-body border-t border-white/5">
-        © 2026 PraxCodes. All rights reserved.
+        © 2026 CodeChamps. All rights reserved.
       </footer>
     </div>
   );

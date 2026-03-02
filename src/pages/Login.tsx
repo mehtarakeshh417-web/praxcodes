@@ -44,7 +44,7 @@ const Login = () => {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center mx-auto mb-4 neon-glow-blue">
               <Sparkles className="w-8 h-8 text-cyber-darker" />
             </div>
-            <h1 className="font-display text-2xl font-bold text-gradient-brand">PraxCodes</h1>
+            <h1 className="font-display text-2xl font-bold text-gradient-brand">CodeChamps</h1>
             <p className="text-white/50 font-body text-sm mt-2">Sign in to your account</p>
           </div>
 
