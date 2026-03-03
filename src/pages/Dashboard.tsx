@@ -29,6 +29,7 @@ import StudentCodingLab from "./student/StudentCodingLab";
 import StudentAchievements from "./student/StudentAchievements";
 import StudentLeaderboard from "./student/StudentLeaderboard";
 import StudentCertificates from "./student/StudentCertificates";
+import StudentProgress from "./student/StudentProgress";
 
 const adminRoutes = (
   <>
@@ -67,6 +68,7 @@ const studentRoutes = (
   <>
     <Route index element={<StudentDashboard />} />
     <Route path="curriculum" element={<StudentCurriculum />} />
+    <Route path="progress" element={<StudentProgress />} />
     <Route path="assignments" element={<StudentAssignments />} />
     <Route path="coding-lab" element={<StudentCodingLab />} />
     <Route path="achievements" element={<StudentAchievements />} />
