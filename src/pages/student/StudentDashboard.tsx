@@ -2,8 +2,9 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useData } from "@/contexts/DataContext";
-import StatCard from "@/components/StatCard";
-import { Trophy, Zap, Target, Star, BookOpen, Code, Award, Gamepad2 } from "lucide-react";
+import { getCurriculumForClass, countTotalTopics, countActivitiesAndProjects } from "@/lib/curriculumData";
+import { Trophy, Target, BookOpen, Award, TrendingUp, Gamepad2 } from "lucide-react";
+import { useMemo } from "react";
 
 const xpLevel = (xp: number) => {
   if (xp < 500) return { level: 1, title: "Byte Beginner", next: 500 };
@@ -23,13 +24,49 @@ const StudentDashboard = () => {
   const lvl = xpLevel(xp);
   const progress = Math.round((xp / lvl.next) * 100);
 
+  const curriculum = useMemo(() => getCurriculumForClass(user?.className || ""), [user?.className]);
+  const completedTopics = useMemo(() => {
+    try {
+      const stored = sessionStorage.getItem(`cc_completed_${user?.id}`);
+      return stored ? JSON.parse(stored) as string[] : [];
+    } catch { return []; }
+  }, [user?.id]);
+
+  const totalTopics = curriculum ? countTotalTopics(curriculum) : 0;
+  const completedCount = completedTopics.length;
+  const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
+  const stats = curriculum ? countActivitiesAndProjects(curriculum) : { activities: 0, projects: 0 };
+
+  const cards = [
+    {
+      icon: BookOpen, title: "My Curriculum", desc: `${curriculum?.subjects.length || 0} subjects · ${totalTopics} topics`, 
+      gradient: "from-[hsl(200,100%,50%)] to-[hsl(260,80%,60%)]", glow: "neon-glow-blue", path: "/dashboard/curriculum",
+    },
+    {
+      icon: TrendingUp, title: "Progress", desc: `${progressPct}% complete · ${completedCount}/${totalTopics} topics`,
+      gradient: "from-[hsl(145,80%,50%)] to-[hsl(170,80%,45%)]", glow: "neon-glow-green", path: "/dashboard/progress",
+    },
+    {
+      icon: Trophy, title: "Leaderboard", desc: "See your rank among peers",
+      gradient: "from-[hsl(25,100%,55%)] to-[hsl(330,90%,60%)]", glow: "neon-glow-orange", path: "/dashboard/leaderboard",
+    },
+    {
+      icon: Award, title: "My Achievements", desc: `${xp} XP · Level ${lvl.level} · ${lvl.title}`,
+      gradient: "from-[hsl(260,80%,60%)] to-[hsl(330,90%,60%)]", glow: "neon-glow-purple", path: "/dashboard/achievements",
+    },
+  ];
+
   return (
     <div>
+      {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        {user?.schoolName && (
+          <p className="text-sm font-body text-neon-blue mb-1 tracking-wider uppercase">{user.schoolName}</p>
+        )}
         <h1 className="font-display text-3xl font-bold mb-1">
           Hey, <span className="text-gradient-brand">{user?.displayName}</span>! 🚀
         </h1>
-        <p className="text-white/60 font-body mb-2">{user?.schoolName} • {user?.className}</p>
+        <p className="text-white/60 font-body mb-2">{user?.className} {student?.section && `· Section ${student.section}`}</p>
       </motion.div>
 
       {/* XP Bar */}
@@ -54,33 +91,45 @@ const StudentDashboard = () => {
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard icon={Target} label="Assignments Done" value={0} glowClass="neon-glow-blue" delay={0.2} onClick={() => navigate("/dashboard/assignments")} />
-        <StatCard icon={Code} label="Projects Completed" value={0} glowClass="neon-glow-green" delay={0.3} onClick={() => navigate("/dashboard/coding-lab")} />
-        <StatCard icon={Trophy} label="School Rank" value="—" glowClass="neon-glow-purple" delay={0.4} onClick={() => navigate("/dashboard/leaderboard")} />
-        <StatCard icon={Star} label="Badges Earned" value={0} glowClass="neon-glow-orange" delay={0.5} onClick={() => navigate("/dashboard/achievements")} />
+      {/* 4 Primary Section Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {cards.map((card, i) => (
+          <motion.div
+            key={card.title}
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 + i * 0.1 }}
+            onClick={() => navigate(card.path)}
+            className={`glass-card p-6 cursor-pointer hover:scale-[1.02] transition-all duration-300 ${card.glow} group`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                <card.icon className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold text-white">{card.title}</h2>
+                <p className="text-white/60 font-body text-sm mt-1">{card.desc}</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="glass-card p-6 cursor-pointer hover:border-white/25 transition-colors" onClick={() => navigate("/dashboard/curriculum")}>
-          <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white">
-            <BookOpen className="w-5 h-5 text-neon-blue" /> My Technologies
-          </h2>
-          <div className="text-center py-8">
-            <BookOpen className="w-10 h-10 text-white/20 mx-auto mb-3" />
-            <p className="text-white/50 font-body text-sm">No technologies assigned yet. Your curriculum will appear once your teacher sets it up.</p>
-          </div>
-        </motion.div>
-
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.7 }} className="glass-card p-6 cursor-pointer hover:border-white/25 transition-colors" onClick={() => navigate("/dashboard/achievements")}>
-          <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white">
-            <Gamepad2 className="w-5 h-5 text-neon-purple" /> Achievement Badges
-          </h2>
-          <div className="text-center py-8">
-            <Award className="w-10 h-10 text-white/20 mx-auto mb-3" />
-            <p className="text-white/50 font-body text-sm">Complete activities to earn badges. No badges earned yet.</p>
-          </div>
-        </motion.div>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Subjects", value: curriculum?.subjects.length || 0, icon: BookOpen, color: "text-neon-blue" },
+          { label: "Activities", value: stats.activities, icon: Target, color: "text-neon-green" },
+          { label: "Projects", value: stats.projects, icon: Gamepad2, color: "text-neon-orange" },
+          { label: "Completed", value: completedCount, icon: Award, color: "text-neon-purple" },
+        ].map((s, i) => (
+          <motion.div key={s.label} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 + i * 0.05 }}
+            className="glass-card p-4 text-center">
+            <s.icon className={`w-6 h-6 mx-auto mb-2 ${s.color}`} />
+            <div className="font-display text-2xl font-bold text-white">{s.value}</div>
+            <div className="text-xs text-white/50 font-body">{s.label}</div>
+          </motion.div>
+        ))}
       </div>
     </div>
   );
