@@ -1,14 +1,17 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./AuthContext";
 
 export interface SchoolData {
   id: string;
+  user_id?: string;
   name: string;
   address: string;
   state: string;
   city: string;
   phone: string;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
   logo?: string;
   sections?: string[];
   createdAt: string;
@@ -16,6 +19,7 @@ export interface SchoolData {
 
 export interface TeacherData {
   id: string;
+  user_id?: string;
   schoolId: string;
   firstName: string;
   lastName: string;
@@ -27,6 +31,7 @@ export interface TeacherData {
 
 export interface StudentData {
   id: string;
+  user_id?: string;
   schoolId: string;
   teacherId: string;
   name: string;
@@ -41,248 +46,272 @@ export interface StudentData {
   createdAt: string;
 }
 
-interface DataContextType {
-  schools: SchoolData[];
-  teachers: TeacherData[];
-  students: StudentData[];
-  addSchool: (school: Omit<SchoolData, "id" | "createdAt">) => SchoolData;
-  addTeacher: (teacher: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => TeacherData;
-  addStudent: (student: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => StudentData;
-  addStudentsBulk: (students: (Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress"> & { customUsername?: string; customPassword?: string })[]) => StudentData[];
-  updateSchool: (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => void;
-  getSchool: (schoolId: string) => SchoolData | undefined;
-  updateTeacher: (teacherId: string, data: Partial<Pick<TeacherData, "firstName" | "lastName" | "classes">>) => void;
-  updateStudent: (studentId: string, data: Partial<Pick<StudentData, "name" | "fatherName" | "class" | "section" | "rollNo" | "teacherId">>) => void;
-  deleteSchool: (schoolId: string) => string[];
-  deleteTeacher: (teacherId: string) => { success: boolean; removedUsernames: string[]; error?: string };
-  deleteStudent: (studentId: string) => string | null;
-  getSchoolTeachers: (schoolId: string) => TeacherData[];
-  getSchoolStudents: (schoolId: string) => StudentData[];
-  getTeacherStudents: (teacherId: string) => StudentData[];
-}
-
-const DataContext = createContext<DataContextType | null>(null);
-
+const usernameToEmail = (username: string) => `${username}@codechamps.local`;
 const generateUsername = (prefix: string, name: string, index: number) => {
   const clean = name.toLowerCase().replace(/[^a-z]/g, "").slice(0, 6);
   return `${prefix}_${clean}${index}`;
 };
-
 const generatePassword = () => Math.random().toString(36).slice(-8);
 
-// Persistence helpers
-const loadState = <T,>(key: string, fallback: T): T => {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch { return fallback; }
-};
+// Map DB row to camelCase
+const mapSchool = (s: any): SchoolData => ({
+  id: s.id, user_id: s.user_id, name: s.name,
+  address: s.address || "", state: s.state || "", city: s.city || "",
+  phone: s.phone || "", logo: s.logo, sections: s.sections || ["A"],
+  createdAt: s.created_at,
+});
+const mapTeacher = (t: any): TeacherData => ({
+  id: t.id, user_id: t.user_id, schoolId: t.school_id,
+  firstName: t.first_name, lastName: t.last_name || "",
+  classes: t.classes || [], username: "", password: "",
+  createdAt: t.created_at,
+});
+const mapStudent = (s: any): StudentData => ({
+  id: s.id, user_id: s.user_id, schoolId: s.school_id,
+  teacherId: s.teacher_id || "", name: s.name,
+  fatherName: s.father_name || "", class: s.class || "",
+  section: s.section || "A", rollNo: s.roll_no || "",
+  username: "", password: "",
+  xp: s.xp || 0, progress: s.progress || 0,
+  createdAt: s.created_at,
+});
 
-const saveState = (key: string, value: unknown) => {
-  localStorage.setItem(key, JSON.stringify(value));
-};
+interface DataContextType {
+  schools: SchoolData[];
+  teachers: TeacherData[];
+  students: StudentData[];
+  loading: boolean;
+  addSchool: (school: { name: string; address: string; state: string; city: string; phone: string; username: string; password: string }) => Promise<SchoolData | null>;
+  addTeacher: (data: { firstName: string; lastName: string; classes: string[]; schoolId: string }, customUsername?: string, customPassword?: string) => Promise<TeacherData | null>;
+  addStudent: (data: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string }, customUsername?: string, customPassword?: string) => Promise<StudentData | null>;
+  addStudentsBulk: (students: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[]) => Promise<StudentData[]>;
+  updateSchool: (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => Promise<void>;
+  getSchool: (schoolId: string) => SchoolData | undefined;
+  updateTeacher: (teacherId: string, data: Partial<{ firstName: string; lastName: string; classes: string[] }>) => Promise<void>;
+  updateStudent: (studentId: string, data: Partial<{ name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string }>) => Promise<void>;
+  deleteSchool: (schoolId: string) => Promise<string[]>;
+  deleteTeacher: (teacherId: string) => Promise<{ success: boolean; removedUsernames: string[]; error?: string }>;
+  deleteStudent: (studentId: string) => Promise<string | null>;
+  getSchoolTeachers: (schoolId: string) => TeacherData[];
+  getSchoolStudents: (schoolId: string) => StudentData[];
+  getTeacherStudents: (teacherId: string) => StudentData[];
+  refreshData: () => Promise<void>;
+}
 
-// Reconcile orphaned auth users into DataContext on first load
-const reconcileAuthUsers = () => {
-  try {
-    const authStore: Record<string, { password: string; user: { id: string; username: string; role: string; displayName: string; schoolName?: string; className?: string } }> = JSON.parse(localStorage.getItem("codechamps_users") || "{}");
-    const existingSchools: SchoolData[] = loadState("cc_schools", []);
-    let existingTeachers: TeacherData[] = loadState("cc_teachers", []);
-    let existingStudents: StudentData[] = loadState("cc_students", []);
-    let changed = false;
-
-    Object.entries(authStore).forEach(([username, entry]) => {
-      const { user } = entry;
-
-      if (user.role === "school") {
-        // Reconcile schools
-        if (!existingSchools.find((s) => s.id === user.id)) {
-          existingSchools.push({
-            id: user.id,
-            name: user.schoolName || user.displayName || username,
-            address: "",
-            state: "",
-            city: "",
-            phone: "",
-            username,
-            password: entry.password,
-            createdAt: new Date().toISOString(),
-          });
-          changed = true;
-        }
-      }
-
-      if (user.role === "teacher") {
-        if (!existingTeachers.find((t) => t.id === user.id)) {
-          // Find school by schoolName
-          const school = existingSchools.find((s) => s.name === user.schoolName);
-          const nameParts = (user.displayName || "").split(" ");
-          existingTeachers.push({
-            id: user.id,
-            schoolId: school?.id || "",
-            firstName: nameParts[0] || username,
-            lastName: nameParts.slice(1).join(" ") || "",
-            classes: user.className ? [user.className] : [],
-            username,
-            password: entry.password,
-            createdAt: new Date().toISOString(),
-          });
-          changed = true;
-        }
-      }
-
-      if (user.role === "student") {
-        if (!existingStudents.find((s) => s.id === user.id)) {
-          const school = existingSchools.find((s) => s.name === user.schoolName);
-          const classParts = (user.className || "").split("-");
-          existingStudents.push({
-            id: user.id,
-            schoolId: school?.id || "",
-            teacherId: "",
-            name: user.displayName || username,
-            fatherName: "",
-            class: classParts[0]?.trim() || "",
-            section: classParts[1]?.trim() || "A",
-            rollNo: "",
-            username,
-            password: entry.password,
-            xp: 0,
-            progress: 0,
-            createdAt: new Date().toISOString(),
-          });
-          changed = true;
-        }
-      }
-    });
-
-    if (changed) {
-      saveState("cc_schools", existingSchools);
-      saveState("cc_teachers", existingTeachers);
-      saveState("cc_students", existingStudents);
-    }
-
-    return { schools: existingSchools, teachers: existingTeachers, students: existingStudents };
-  } catch {
-    return { schools: loadState<SchoolData[]>("cc_schools", []), teachers: loadState<TeacherData[]>("cc_teachers", []), students: loadState<StudentData[]>("cc_students", []) };
-  }
-};
+const DataContext = createContext<DataContextType | null>(null);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [initialData] = useState(() => reconcileAuthUsers());
-  const [schools, setSchools] = useState<SchoolData[]>(initialData.schools);
-  const [teachers, setTeachers] = useState<TeacherData[]>(initialData.teachers);
-  const [students, setStudents] = useState<StudentData[]>(initialData.students);
+  const { user } = useAuth();
+  const [schools, setSchools] = useState<SchoolData[]>([]);
+  const [teachers, setTeachers] = useState<TeacherData[]>([]);
+  const [students, setStudents] = useState<StudentData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const persistSchools = (data: SchoolData[]) => { setSchools(data); saveState("cc_schools", data); };
-  const persistTeachers = (data: TeacherData[]) => { setTeachers(data); saveState("cc_teachers", data); };
-  const persistStudents = (data: StudentData[]) => { setStudents(data); saveState("cc_students", data); };
+  const fetchData = useCallback(async () => {
+    if (!user) { setSchools([]); setTeachers([]); setStudents([]); setLoading(false); return; }
+    setLoading(true);
+    try {
+      const [sRes, tRes, stRes] = await Promise.all([
+        supabase.from("schools").select("*"),
+        supabase.from("teachers").select("*"),
+        supabase.from("students").select("*"),
+      ]);
+      setSchools((sRes.data || []).map(mapSchool));
+      setTeachers((tRes.data || []).map(mapTeacher));
+      setStudents((stRes.data || []).map(mapStudent));
+    } catch (err) { console.error("Fetch error:", err); }
+    setLoading(false);
+  }, [user]);
 
-  const addSchool = useCallback((data: Omit<SchoolData, "id" | "createdAt">) => {
-    const school: SchoolData = { ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    const updated = [...schools, school];
-    persistSchools(updated);
-    return school;
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const addSchool = useCallback(async (data: { name: string; address: string; state: string; city: string; phone: string; username: string; password: string }): Promise<SchoolData | null> => {
+    const { data: result, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "create_user", email: usernameToEmail(data.username), password: data.password, role: "school", metadata: { display_name: data.name, school_name: data.name } },
+    });
+    if (error || result?.error) { console.error("Create school user failed:", error || result?.error); return null; }
+
+    const { data: school, error: ie } = await supabase.from("schools").insert({
+      user_id: result.user.id, name: data.name, address: data.address, state: data.state, city: data.city, phone: data.phone,
+    }).select().single();
+    if (ie) { console.error("Insert school failed:", ie); return null; }
+
+    await fetchData();
+    return { ...mapSchool(school), username: data.username, password: data.password };
+  }, [fetchData]);
+
+  const addTeacher = useCallback(async (data: { firstName: string; lastName: string; classes: string[]; schoolId: string }, customUsername?: string, customPassword?: string): Promise<TeacherData | null> => {
+    const username = customUsername || generateUsername("tchr", data.firstName, teachers.length + 1);
+    const password = customPassword || generatePassword();
+    // Resolve actual school_id from user_id if needed
+    const school = schools.find(s => s.user_id === data.schoolId);
+    const actualSchoolId = school?.id || data.schoolId;
+
+    const { data: result, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "create_user", email: usernameToEmail(username), password, role: "teacher", metadata: { display_name: `${data.firstName} ${data.lastName}` } },
+    });
+    if (error || result?.error) { console.error("Create teacher user failed:", error || result?.error); return null; }
+
+    const { data: teacher, error: ie } = await supabase.from("teachers").insert({
+      user_id: result.user.id, school_id: actualSchoolId,
+      first_name: data.firstName, last_name: data.lastName, classes: data.classes,
+    }).select().single();
+    if (ie) { console.error("Insert teacher failed:", ie); return null; }
+
+    await fetchData();
+    return { ...mapTeacher(teacher), username, password };
+  }, [teachers.length, schools, fetchData]);
+
+  const addStudent = useCallback(async (data: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string }, customUsername?: string, customPassword?: string): Promise<StudentData | null> => {
+    const username = customUsername || generateUsername("std", data.name, students.length + 1);
+    const password = customPassword || generatePassword();
+    const school = schools.find(s => s.user_id === data.schoolId);
+    const actualSchoolId = school?.id || data.schoolId;
+
+    const { data: result, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "create_user", email: usernameToEmail(username), password, role: "student", metadata: { display_name: data.name } },
+    });
+    if (error || result?.error) { console.error("Create student user failed:", error || result?.error); return null; }
+
+    const { data: student, error: ie } = await supabase.from("students").insert({
+      user_id: result.user.id, school_id: actualSchoolId, teacher_id: data.teacherId,
+      name: data.name, father_name: data.fatherName, class: data.class,
+      section: data.section, roll_no: data.rollNo,
+    }).select().single();
+    if (ie) { console.error("Insert student failed:", ie); return null; }
+
+    await fetchData();
+    return { ...mapStudent(student), username, password };
+  }, [students.length, schools, fetchData]);
+
+  const addStudentsBulk = useCallback(async (bulkData: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[]): Promise<StudentData[]> => {
+    const school = schools.find(s => s.user_id === bulkData[0]?.schoolId);
+    const actualSchoolId = school?.id || bulkData[0]?.schoolId;
+
+    const usersPayload = bulkData.map((d, i) => ({
+      email: usernameToEmail(d.customUsername || generateUsername("std", d.name, students.length + i + 1)),
+      password: d.customPassword || generatePassword(),
+      role: "student",
+      metadata: { display_name: d.name },
+    }));
+
+    const { data: result, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "create_users_bulk", users: usersPayload },
+    });
+    if (error || !result?.users) { console.error("Bulk create failed:", error || result?.errors); return []; }
+
+    const inserts = result.users.map((u: any, i: number) => ({
+      user_id: u.id, school_id: actualSchoolId, teacher_id: bulkData[i].teacherId,
+      name: bulkData[i].name, father_name: bulkData[i].fatherName,
+      class: bulkData[i].class, section: bulkData[i].section, roll_no: bulkData[i].rollNo,
+    }));
+
+    const { data: created, error: ie } = await supabase.from("students").insert(inserts).select();
+    if (ie) { console.error("Bulk insert failed:", ie); return []; }
+
+    await fetchData();
+    return (created || []).map((s, i) => ({
+      ...mapStudent(s),
+      username: usersPayload[i].email.replace("@codechamps.local", ""),
+      password: usersPayload[i].password,
+    }));
+  }, [students.length, schools, fetchData]);
+
+  const updateSchool = useCallback(async (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => {
+    await supabase.from("schools").update(data).eq("id", schoolId);
+    await fetchData();
+  }, [fetchData]);
+
+  const getSchool = useCallback((schoolId: string) => {
+    return schools.find(s => s.id === schoolId || s.user_id === schoolId);
   }, [schools]);
 
-  const addTeacher = useCallback((data: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => {
-    const teacher: TeacherData = {
-      ...data,
-      id: crypto.randomUUID(),
-      username: customUsername || generateUsername("tchr", data.firstName, teachers.length + 1),
-      password: customPassword || generatePassword(),
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...teachers, teacher];
-    persistTeachers(updated);
-    return teacher;
-  }, [teachers]);
+  const updateTeacher = useCallback(async (teacherId: string, data: Partial<{ firstName: string; lastName: string; classes: string[] }>) => {
+    const dbData: any = {};
+    if (data.firstName !== undefined) dbData.first_name = data.firstName;
+    if (data.lastName !== undefined) dbData.last_name = data.lastName;
+    if (data.classes !== undefined) dbData.classes = data.classes;
+    await supabase.from("teachers").update(dbData).eq("id", teacherId);
+    await fetchData();
+  }, [fetchData]);
 
-  const addStudent = useCallback((data: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => {
-    const student: StudentData = {
-      ...data,
-      id: crypto.randomUUID(),
-      username: customUsername || generateUsername("std", data.name, students.length + 1),
-      password: customPassword || generatePassword(),
-      xp: 0,
-      progress: 0,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...students, student];
-    persistStudents(updated);
-    return student;
-  }, [students]);
+  const updateStudent = useCallback(async (studentId: string, data: Partial<{ name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string }>) => {
+    const dbData: any = {};
+    if (data.name !== undefined) dbData.name = data.name;
+    if (data.fatherName !== undefined) dbData.father_name = data.fatherName;
+    if (data.class !== undefined) dbData.class = data.class;
+    if (data.section !== undefined) dbData.section = data.section;
+    if (data.rollNo !== undefined) dbData.roll_no = data.rollNo;
+    if (data.teacherId !== undefined) dbData.teacher_id = data.teacherId;
+    await supabase.from("students").update(dbData).eq("id", studentId);
+    await fetchData();
+  }, [fetchData]);
 
-  const addStudentsBulk = useCallback((bulk: (Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress"> & { customUsername?: string; customPassword?: string })[]) => {
-    const created: StudentData[] = bulk.map((data, i) => {
-      const { customUsername, customPassword, ...rest } = data;
-      return {
-        ...rest,
-        id: crypto.randomUUID(),
-        username: customUsername || generateUsername("std", rest.name, students.length + i + 1),
-        password: customPassword || generatePassword(),
-        xp: 0,
-        progress: 0,
-        createdAt: new Date().toISOString(),
-      };
-    });
-    const updated = [...students, ...created];
-    persistStudents(updated);
-    return created;
-  }, [students]);
+  const deleteSchool = useCallback(async (schoolId: string): Promise<string[]> => {
+    const school = schools.find(s => s.id === schoolId);
+    const schoolTeachers = teachers.filter(t => t.schoolId === schoolId);
+    const schoolStudents = students.filter(s => s.schoolId === schoolId);
+    const userIds = [school?.user_id, ...schoolTeachers.map(t => t.user_id), ...schoolStudents.map(s => s.user_id)].filter(Boolean) as string[];
 
-  const updateTeacher = useCallback((teacherId: string, data: Partial<Pick<TeacherData, "firstName" | "lastName" | "classes">>) => {
-    const updated = teachers.map((t) => t.id === teacherId ? { ...t, ...data } : t);
-    persistTeachers(updated);
-  }, [teachers]);
-
-  const updateStudent = useCallback((studentId: string, data: Partial<Pick<StudentData, "name" | "fatherName" | "class" | "section" | "rollNo" | "teacherId">>) => {
-    const updated = students.map((s) => s.id === studentId ? { ...s, ...data } : s);
-    persistStudents(updated);
-  }, [students]);
-
-  const deleteSchool = useCallback((schoolId: string): string[] => {
-    const removedUsernames: string[] = [];
-    const school = schools.find((s) => s.id === schoolId);
-    if (school) removedUsernames.push(school.username);
-    teachers.filter((t) => t.schoolId === schoolId).forEach((t) => removedUsernames.push(t.username));
-    students.filter((s) => s.schoolId === schoolId).forEach((s) => removedUsernames.push(s.username));
-    persistSchools(schools.filter((s) => s.id !== schoolId));
-    persistTeachers(teachers.filter((t) => t.schoolId !== schoolId));
-    persistStudents(students.filter((s) => s.schoolId !== schoolId));
-    return removedUsernames;
-  }, [schools, teachers, students]);
-
-  const deleteTeacher = useCallback((teacherId: string): { success: boolean; removedUsernames: string[]; error?: string } => {
-    const teacher = teachers.find((t) => t.id === teacherId);
-    if (!teacher) return { success: false, removedUsernames: [], error: "Teacher not found" };
-    const assignedStudents = students.filter((s) => s.teacherId === teacherId);
-    if (assignedStudents.length > 0) {
-      return { success: false, removedUsernames: [], error: `Cannot delete: ${assignedStudents.length} student(s) are assigned to this teacher. Reassign them first.` };
+    await supabase.from("schools").delete().eq("id", schoolId);
+    if (userIds.length > 0) {
+      await supabase.functions.invoke("manage-users", { body: { action: "delete_users_bulk", user_ids: userIds } });
     }
-    persistTeachers(teachers.filter((t) => t.id !== teacherId));
-    return { success: true, removedUsernames: [teacher.username] };
+    await fetchData();
+    return []; // usernames no longer needed
+  }, [schools, teachers, students, fetchData]);
+
+  const deleteTeacher = useCallback(async (teacherId: string): Promise<{ success: boolean; removedUsernames: string[]; error?: string }> => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (!teacher) return { success: false, removedUsernames: [], error: "Teacher not found" };
+    const assigned = students.filter(s => s.teacherId === teacherId);
+    if (assigned.length > 0) return { success: false, removedUsernames: [], error: `Cannot delete: ${assigned.length} student(s) assigned. Reassign first.` };
+
+    await supabase.from("teachers").delete().eq("id", teacherId);
+    if (teacher.user_id) {
+      await supabase.functions.invoke("manage-users", { body: { action: "delete_user", user_id: teacher.user_id } });
+    }
+    await fetchData();
+    return { success: true, removedUsernames: [] };
+  }, [teachers, students, fetchData]);
+
+  const deleteStudent = useCallback(async (studentId: string): Promise<string | null> => {
+    const student = students.find(s => s.id === studentId);
+    await supabase.from("students").delete().eq("id", studentId);
+    if (student?.user_id) {
+      await supabase.functions.invoke("manage-users", { body: { action: "delete_user", user_id: student.user_id } });
+    }
+    await fetchData();
+    return null;
+  }, [students, fetchData]);
+
+  const getSchoolTeachers = useCallback((schoolId: string) => {
+    const school = schools.find(s => s.user_id === schoolId);
+    const actual = school?.id || schoolId;
+    return teachers.filter(t => t.schoolId === actual);
+  }, [schools, teachers]);
+
+  const getSchoolStudents = useCallback((schoolId: string) => {
+    const school = schools.find(s => s.user_id === schoolId);
+    const actual = school?.id || schoolId;
+    return students.filter(s => s.schoolId === actual);
+  }, [schools, students]);
+
+  const getTeacherStudents = useCallback((teacherId: string) => {
+    const teacher = teachers.find(t => t.user_id === teacherId);
+    const actual = teacher?.id || teacherId;
+    return students.filter(s => s.teacherId === actual);
   }, [teachers, students]);
 
-  const deleteStudent = useCallback((studentId: string): string | null => {
-    const student = students.find((s) => s.id === studentId);
-    if (!student) return null;
-    persistStudents(students.filter((s) => s.id !== studentId));
-    return student.username;
-  }, [students]);
-
-  const updateSchool = useCallback((schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => {
-    const updated = schools.map((s) => s.id === schoolId ? { ...s, ...data } : s);
-    persistSchools(updated);
-  }, [schools]);
-
-  const getSchool = useCallback((schoolId: string) => schools.find((s) => s.id === schoolId), [schools]);
-
-  const getSchoolTeachers = useCallback((schoolId: string) => teachers.filter((t) => t.schoolId === schoolId), [teachers]);
-  const getSchoolStudents = useCallback((schoolId: string) => students.filter((s) => s.schoolId === schoolId), [students]);
-  const getTeacherStudents = useCallback((teacherId: string) => students.filter((s) => s.teacherId === teacherId), [students]);
-
   return (
-    <DataContext.Provider value={{ schools, teachers, students, addSchool, addTeacher, addStudent, addStudentsBulk, updateTeacher, updateStudent, updateSchool, deleteSchool, deleteTeacher, deleteStudent, getSchool, getSchoolTeachers, getSchoolStudents, getTeacherStudents }}>
+    <DataContext.Provider value={{
+      schools, teachers, students, loading,
+      addSchool, addTeacher, addStudent, addStudentsBulk,
+      updateSchool, getSchool, updateTeacher, updateStudent,
+      deleteSchool, deleteTeacher, deleteStudent,
+      getSchoolTeachers, getSchoolStudents, getTeacherStudents,
+      refreshData: fetchData,
+    }}>
       {children}
     </DataContext.Provider>
   );

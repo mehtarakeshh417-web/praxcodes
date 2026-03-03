@@ -11,7 +11,6 @@ import { INDIAN_STATES, MAJOR_CITIES } from "@/lib/indianStates";
 
 const AdminSchools = () => {
   const { schools, addSchool, deleteSchool } = useData();
-  const { addDemoUser, removeDemoUsers } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
@@ -19,6 +18,7 @@ const AdminSchools = () => {
   const [filterCity, setFilterCity] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [customCity, setCustomCity] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredSchools = useMemo(() => {
     return schools.filter((s) => {
@@ -42,29 +42,30 @@ const AdminSchools = () => {
     return MAJOR_CITIES[form.state] || [];
   }, [form.state]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalCity = form.city === "__other" ? customCity.trim() : form.city;
     if (!form.name || !form.address || !form.state || !finalCity || !form.phone || !form.username || !form.password) {
       toast.error("All fields are required");
       return;
     }
+    setIsSubmitting(true);
     const submitData = { ...form, city: finalCity };
-    const school = addSchool(submitData);
-    addDemoUser(form.username, form.password, {
-      id: school.id, username: form.username, role: "school",
-      displayName: form.name, schoolName: form.name,
-    });
-    toast.success(`School "${form.name}" created! Login: ${form.username}`);
-    setForm({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
-    setCustomCity("");
-    setShowForm(false);
+    const school = await addSchool(submitData);
+    if (school) {
+      toast.success(`School "${form.name}" created! Login: ${form.username}`);
+      setForm({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
+      setCustomCity("");
+      setShowForm(false);
+    } else {
+      toast.error("Failed to create school. Username may already exist.");
+    }
+    setIsSubmitting(false);
   };
 
-  const handleDelete = (schoolId: string, schoolName: string) => {
+  const handleDelete = async (schoolId: string, schoolName: string) => {
     if (!confirm(`Delete "${schoolName}" and ALL its teachers & students? This cannot be undone.`)) return;
-    const removedUsernames = deleteSchool(schoolId);
-    removeDemoUsers(removedUsernames);
+    await deleteSchool(schoolId);
     toast.success(`School "${schoolName}" and all associated data deleted.`);
   };
 
@@ -169,7 +170,7 @@ const AdminSchools = () => {
             </div>
             <div className="md:col-span-2 flex justify-end gap-3 mt-4">
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button type="submit" variant="hero">Create School</Button>
+              <Button type="submit" variant="hero" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create School"}</Button>
             </div>
           </form>
         </motion.div>
@@ -204,7 +205,6 @@ const AdminSchools = () => {
               <div className="space-y-1.5 text-sm text-white/60 font-body">
                 <p>📍 {school.address}</p>
                 <p>📞 {school.phone}</p>
-                <p>👤 Login: <span className="text-neon-green font-medium">{school.username}</span></p>
               </div>
             </motion.div>
           ))}

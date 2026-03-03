@@ -83,15 +83,18 @@ const Dashboard = () => {
   const [showSecuritySetup, setShowSecuritySetup] = useState(false);
 
   useEffect(() => {
-    if (user && !hasSecuritySetup()) {
-      setShowSecuritySetup(true);
-    }
+    const check = async () => {
+      if (user && !(await hasSecuritySetup())) {
+        setShowSecuritySetup(true);
+      }
+    };
+    check();
   }, [user, hasSecuritySetup]);
 
   if (!user) return null;
 
-  const handleSecurityComplete = (pin: string, question: string, answer: string) => {
-    setupSecurity(pin, question, answer);
+  const handleSecurityComplete = async (pin: string, question: string, answer: string) => {
+    await setupSecurity(pin, question, answer);
     setShowSecuritySetup(false);
     toast.success("Security setup complete! Your PIN and security question are saved.");
   };

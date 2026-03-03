@@ -14,12 +14,12 @@ const SECTION_LIST = ["A", "B", "C", "D", "E"];
 const SchoolTeachers = () => {
   const { user } = useAuth();
   const { addTeacher, getSchoolTeachers, deleteTeacher, updateTeacher } = useData();
-  const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", classes: [] as string[] });
   const [form, setForm] = useState({ firstName: "", lastName: "", username: "", password: "" });
   const [selectedClasses, setSelectedClasses] = useState<Record<string, string[]>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const schoolId = user?.id || "";
   const teachers = getSchoolTeachers(schoolId);
@@ -27,11 +27,7 @@ const SchoolTeachers = () => {
   const toggleClassSelection = (cls: string) => {
     setSelectedClasses((prev) => {
       const updated = { ...prev };
-      if (updated[cls]) {
-        delete updated[cls];
-      } else {
-        updated[cls] = ["A"]; // default section A
-      }
+      if (updated[cls]) { delete updated[cls]; } else { updated[cls] = ["A"]; }
       return updated;
     });
   };
@@ -42,14 +38,8 @@ const SchoolTeachers = () => {
       const sections = updated[cls] || [];
       if (sections.includes(section)) {
         const filtered = sections.filter((s) => s !== section);
-        if (filtered.length === 0) {
-          delete updated[cls];
-        } else {
-          updated[cls] = filtered;
-        }
-      } else {
-        updated[cls] = [...sections, section];
-      }
+        if (filtered.length === 0) { delete updated[cls]; } else { updated[cls] = filtered; }
+      } else { updated[cls] = [...sections, section]; }
       return updated;
     });
   };
@@ -74,34 +64,35 @@ const SchoolTeachers = () => {
     return result;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const classStrings = getClassStrings(selectedClasses);
     if (!form.firstName || !form.lastName || classStrings.length === 0) {
       toast.error("Fill all fields and select at least one class with section");
       return;
     }
+    setIsSubmitting(true);
     const customUsername = form.username.trim() || undefined;
     const customPassword = form.password.trim() || undefined;
-    const teacher = addTeacher({ firstName: form.firstName, lastName: form.lastName, classes: classStrings, schoolId }, customUsername, customPassword);
-    addDemoUser(teacher.username, teacher.password, {
-      id: teacher.id, username: teacher.username, role: "teacher",
-      displayName: `${form.firstName} ${form.lastName}`, schoolName: user?.schoolName || user?.displayName,
-    });
-    toast.success(`Teacher created! Username: ${teacher.username} | Password: ${teacher.password}`);
-    setForm({ firstName: "", lastName: "", username: "", password: "" });
-    setSelectedClasses({});
-    setShowForm(false);
+    const teacher = await addTeacher({ firstName: form.firstName, lastName: form.lastName, classes: classStrings, schoolId }, customUsername, customPassword);
+    if (teacher) {
+      toast.success(`Teacher created! Username: ${teacher.username} | Password: ${teacher.password}`);
+      setForm({ firstName: "", lastName: "", username: "", password: "" });
+      setSelectedClasses({});
+      setShowForm(false);
+    } else {
+      toast.error("Failed to create teacher. Username may already exist.");
+    }
+    setIsSubmitting(false);
   };
 
-  const handleDelete = (teacherId: string, teacherName: string) => {
+  const handleDelete = async (teacherId: string, teacherName: string) => {
     if (!confirm(`Delete teacher "${teacherName}"? Students assigned to this teacher must be reassigned first.`)) return;
-    const result = deleteTeacher(teacherId);
+    const result = await deleteTeacher(teacherId);
     if (!result.success) {
       toast.error(result.error);
       return;
     }
-    result.removedUsernames.forEach((u) => removeDemoUser(u));
     toast.success(`Teacher "${teacherName}" deleted.`);
   };
 
@@ -110,12 +101,12 @@ const SchoolTeachers = () => {
     setEditForm({ firstName: t.firstName, lastName: t.lastName, classes: t.classes });
   };
 
-  const saveEdit = (teacherId: string) => {
+  const saveEdit = async (teacherId: string) => {
     if (!editForm.firstName || !editForm.lastName) {
       toast.error("Name fields cannot be empty");
       return;
     }
-    updateTeacher(teacherId, { firstName: editForm.firstName, lastName: editForm.lastName, classes: editForm.classes });
+    await updateTeacher(teacherId, { firstName: editForm.firstName, lastName: editForm.lastName, classes: editForm.classes });
     toast.success("Teacher updated.");
     setEditingId(null);
   };
@@ -163,7 +154,6 @@ const SchoolTeachers = () => {
               </div>
             </div>
 
-            {/* Class & Section Selection */}
             <div className="space-y-3">
               <Label className="text-white/80 font-body font-medium">Assign Classes & Sections *</Label>
               <div className="space-y-2">
@@ -199,7 +189,7 @@ const SchoolTeachers = () => {
 
             <div className="flex justify-end gap-3 mt-4">
               <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setSelectedClasses({}); }}>Cancel</Button>
-              <Button type="submit" variant="hero">Create Teacher</Button>
+              <Button type="submit" variant="hero" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Teacher"}</Button>
             </div>
           </form>
         </motion.div>
@@ -229,7 +219,6 @@ const SchoolTeachers = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-body font-bold text-white">{t.firstName} {t.lastName}</span>
-                    <span className="text-white/50 text-xs ml-3">@{t.username}</span>
                     <div className="text-xs text-white/40 mt-1">{formatClassDisplay(t.classes)}</div>
                   </div>
                   <div className="flex items-center gap-2">
