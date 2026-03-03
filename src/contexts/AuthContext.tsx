@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
 
 export type UserRole = "admin" | "school" | "teacher" | "student";
 
@@ -11,166 +13,175 @@ export interface AuthUser {
   className?: string;
 }
 
-export interface UserSecurity {
-  pin: string;
-  securityQuestion: string;
-  securityAnswer: string;
-}
-
 interface AuthContextType {
   user: AuthUser | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
-  addDemoUser: (username: string, password: string, user: AuthUser) => void;
-  removeDemoUser: (username: string) => void;
-  removeDemoUsers: (usernames: string[]) => void;
-  changeAdminPassword: (newPassword: string, oldPassword?: string) => boolean;
-  changePassword: (newPassword: string, oldPassword?: string) => boolean;
-  hasSecuritySetup: () => boolean;
-  setupSecurity: (pin: string, question: string, answer: string) => void;
-  verifyPin: (pin: string) => boolean;
-  verifySecurityAnswer: (answer: string) => { valid: boolean; question: string };
-  getSecurityQuestion: () => string | null;
+  changePassword: (newPassword: string, oldPassword?: string) => Promise<boolean>;
+  hasSecuritySetup: () => Promise<boolean>;
+  setupSecurity: (pin: string, question: string, answer: string) => Promise<void>;
+  verifyPin: (pin: string) => Promise<boolean>;
+  verifySecurityAnswer: (answer: string) => Promise<{ valid: boolean; question: string }>;
+  getSecurityQuestion: () => Promise<string | null>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const DEFAULT_ADMIN: { password: string; user: AuthUser } = {
-  password: "admin",
-  user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
-};
+// Convert username to email format for Supabase auth
+const usernameToEmail = (username: string) => `${username}@codechamps.local`;
+const emailToUsername = (email: string) => email.replace("@codechamps.local", "");
 
-const getStoredUsers = (): Record<string, { password: string; user: AuthUser }> => {
-  const stored = localStorage.getItem("codechamps_users");
-  if (stored) return JSON.parse(stored);
-  // First-ever launch: seed default admin and persist it
-  const initial = { admin: DEFAULT_ADMIN };
-  localStorage.setItem("codechamps_users", JSON.stringify(initial));
-  return initial;
-};
+const buildAuthUser = async (supaUser: User): Promise<AuthUser | null> => {
+  const username = emailToUsername(supaUser.email || "");
+  
+  // Get role
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", supaUser.id);
+  
+  const role = (roles?.[0]?.role as UserRole) || "student";
+  const meta = supaUser.user_metadata || {};
 
-const saveUsers = (users: Record<string, { password: string; user: AuthUser }>) => {
-  localStorage.setItem("codechamps_users", JSON.stringify(users));
+  let displayName = meta.display_name || username;
+  let schoolName = meta.school_name;
+  let className = meta.class_name;
+
+  // Enrich from tables
+  if (role === "school") {
+    const { data: school } = await supabase.from("schools").select("name").eq("user_id", supaUser.id).maybeSingle();
+    if (school) { displayName = school.name; schoolName = school.name; }
+  } else if (role === "teacher") {
+    const { data: teacher } = await supabase.from("teachers").select("first_name, last_name, school_id").eq("user_id", supaUser.id).maybeSingle();
+    if (teacher) {
+      displayName = `${teacher.first_name} ${teacher.last_name}`.trim();
+      const { data: school } = await supabase.from("schools").select("name").eq("id", teacher.school_id).maybeSingle();
+      if (school) schoolName = school.name;
+    }
+  } else if (role === "student") {
+    const { data: student } = await supabase.from("students").select("name, class, section, school_id").eq("user_id", supaUser.id).maybeSingle();
+    if (student) {
+      displayName = student.name;
+      className = `${student.class} (${student.section})`;
+      const { data: school } = await supabase.from("schools").select("name").eq("id", student.school_id).maybeSingle();
+      if (school) schoolName = school.name;
+    }
+  }
+
+  return { id: supaUser.id, username, role, displayName, schoolName, className };
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem("codechamps_user");
-    return stored ? JSON.parse(stored) : null;
-  });
-  const [demoUsers, setDemoUsers] = useState(getStoredUsers);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Clear old localStorage data from previous implementation
+    localStorage.removeItem("codechamps_users");
+    localStorage.removeItem("codechamps_user");
+    localStorage.removeItem("codechamps_security");
+    localStorage.removeItem("cc_schools");
+    localStorage.removeItem("cc_teachers");
+    localStorage.removeItem("cc_students");
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const authUser = await buildAuthUser(session.user);
+        setUser(authUser);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const authUser = await buildAuthUser(session.user);
+        setUser(authUser);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
-    const current = getStoredUsers();
-    const entry = current[username];
-    if (entry && entry.password === password) {
-      setUser(entry.user);
-      localStorage.setItem("codechamps_user", JSON.stringify(entry.user));
-      return true;
-    }
-    return false;
+    const email = usernameToEmail(username);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return !error;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem("codechamps_user");
   }, []);
 
-  const addDemoUser = useCallback((username: string, password: string, userData: AuthUser) => {
-    setDemoUsers((prev) => {
-      const updated = { ...prev, [username]: { password, user: userData } };
-      saveUsers(updated);
-      return updated;
-    });
-  }, []);
-
-  const removeDemoUser = useCallback((username: string) => {
-    setDemoUsers((prev) => {
-      const updated = { ...prev };
-      delete updated[username];
-      saveUsers(updated);
-      return updated;
-    });
-  }, []);
-
-  const removeDemoUsers = useCallback((usernames: string[]) => {
-    setDemoUsers((prev) => {
-      const updated = { ...prev };
-      usernames.forEach((u) => delete updated[u]);
-      saveUsers(updated);
-      return updated;
-    });
-  }, []);
-
-  const changeAdminPassword = useCallback((newPassword: string, oldPassword?: string): boolean => {
-    const current = getStoredUsers();
-    if (oldPassword && current.admin?.password !== oldPassword) return false;
-    current.admin = { ...current.admin, password: newPassword };
-    saveUsers(current);
-    setDemoUsers(current);
-    return true;
-  }, []);
-
-  const changePassword = useCallback((newPassword: string, oldPassword?: string): boolean => {
+  const changePassword = useCallback(async (newPassword: string, _oldPassword?: string): Promise<boolean> => {
     if (!user) return false;
-    const current = getStoredUsers();
-    const entry = current[user.username];
-    if (!entry) return false;
-    if (oldPassword && entry.password !== oldPassword) return false;
-    current[user.username] = { ...entry, password: newPassword };
-    saveUsers(current);
-    setDemoUsers(current);
-    return true;
+    const { error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "change_password", user_id: user.id, new_password: newPassword },
+    });
+    return !error;
   }, [user]);
 
-  const getSecurityStore = (): Record<string, UserSecurity> => {
-    try {
-      const stored = localStorage.getItem("codechamps_security");
-      return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
-  };
-
-  const saveSecurityStore = (data: Record<string, UserSecurity>) => {
-    localStorage.setItem("codechamps_security", JSON.stringify(data));
-  };
-
-  const hasSecuritySetup = useCallback((): boolean => {
+  const hasSecuritySetup = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
-    const store = getSecurityStore();
-    return !!store[user.username];
+    const { data } = await supabase
+      .from("user_security")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return !!data;
   }, [user]);
 
-  const setupSecurity = useCallback((pin: string, question: string, answer: string) => {
+  const setupSecurity = useCallback(async (pin: string, question: string, answer: string) => {
     if (!user) return;
-    const store = getSecurityStore();
-    store[user.username] = { pin, securityQuestion: question, securityAnswer: answer };
-    saveSecurityStore(store);
+    await supabase.from("user_security").upsert({
+      user_id: user.id,
+      pin,
+      security_question: question,
+      security_answer: answer.trim().toLowerCase(),
+    }, { onConflict: "user_id" });
   }, [user]);
 
-  const verifyPin = useCallback((pin: string): boolean => {
+  const verifyPin = useCallback(async (pin: string): Promise<boolean> => {
     if (!user) return false;
-    const store = getSecurityStore();
-    const entry = store[user.username];
-    return entry?.pin === pin;
+    const { data } = await supabase
+      .from("user_security")
+      .select("pin")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return data?.pin === pin;
   }, [user]);
 
-  const getSecurityQuestion = useCallback((): string | null => {
+  const getSecurityQuestion = useCallback(async (): Promise<string | null> => {
     if (!user) return null;
-    const store = getSecurityStore();
-    return store[user.username]?.securityQuestion || null;
+    const { data } = await supabase
+      .from("user_security")
+      .select("security_question")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return data?.security_question || null;
   }, [user]);
 
-  const verifySecurityAnswer = useCallback((answer: string): { valid: boolean; question: string } => {
+  const verifySecurityAnswer = useCallback(async (answer: string): Promise<{ valid: boolean; question: string }> => {
     if (!user) return { valid: false, question: "" };
-    const store = getSecurityStore();
-    const entry = store[user.username];
-    if (!entry) return { valid: false, question: "" };
-    return { valid: entry.securityAnswer === answer.trim().toLowerCase(), question: entry.securityQuestion };
+    const { data } = await supabase
+      .from("user_security")
+      .select("security_question, security_answer")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!data) return { valid: false, question: "" };
+    return {
+      valid: data.security_answer === answer.trim().toLowerCase(),
+      question: data.security_question,
+    };
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, removeDemoUser, removeDemoUsers, changeAdminPassword, changePassword, hasSecuritySetup, setupSecurity, verifyPin, verifySecurityAnswer, getSecurityQuestion }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, changePassword, hasSecuritySetup, setupSecurity, verifyPin, verifySecurityAnswer, getSecurityQuestion, loading }}>
       {children}
     </AuthContext.Provider>
   );

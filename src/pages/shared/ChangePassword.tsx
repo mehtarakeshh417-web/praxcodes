@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -14,23 +14,30 @@ const ChangePassword = () => {
   const [pin, setPin] = useState("");
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [securityQuestion, setSecurityQuestion] = useState<string | null>(null);
+  const [setupDone, setSetupDone] = useState(false);
 
-  const securityQuestion = getSecurityQuestion();
-  const setupDone = hasSecuritySetup();
+  useEffect(() => {
+    const load = async () => {
+      setSetupDone(await hasSecuritySetup());
+      setSecurityQuestion(await getSecurityQuestion());
+    };
+    load();
+  }, [hasSecuritySetup, getSecurityQuestion]);
 
-  const handleChange = () => {
+  const handleChange = async () => {
     if (!newPassword || newPassword.length < 4) { toast.error("New password must be at least 4 characters"); return; }
     if (method === "old") {
-      if (changePassword(newPassword, oldPassword)) { toast.success("Password changed!"); reset(); }
-      else toast.error("Old password is incorrect");
+      if (await changePassword(newPassword, oldPassword)) { toast.success("Password changed!"); reset(); }
+      else toast.error("Failed to change password");
     } else if (method === "pin") {
-      if (verifyPin(pin)) {
-        if (changePassword(newPassword)) { toast.success("Password changed via PIN!"); reset(); }
+      if (await verifyPin(pin)) {
+        if (await changePassword(newPassword)) { toast.success("Password changed via PIN!"); reset(); }
       } else toast.error("Incorrect PIN");
     } else if (method === "security") {
-      const result = verifySecurityAnswer(securityAnswer);
+      const result = await verifySecurityAnswer(securityAnswer);
       if (result.valid) {
-        if (changePassword(newPassword)) { toast.success("Password changed via security question!"); reset(); }
+        if (await changePassword(newPassword)) { toast.success("Password changed via security question!"); reset(); }
       } else toast.error("Incorrect security answer");
     }
   };
@@ -78,7 +85,7 @@ const ChangePassword = () => {
             )}
             {method === "security" && (
               <div className="space-y-2">
-                <Label className="text-white/80 font-body font-medium">{securityQuestion}</Label>
+                <Label className="text-white/80 font-body font-medium">{securityQuestion || "Loading..."}</Label>
                 <Input value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" placeholder="Your answer" />
               </div>
             )}

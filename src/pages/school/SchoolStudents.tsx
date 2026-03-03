@@ -15,8 +15,8 @@ const DEFAULT_SECTIONS = ["A", "B", "C", "D", "E"];
 const SchoolStudents = () => {
   const { user } = useAuth();
   const { addStudent, addStudentsBulk, getSchoolStudents, getSchoolTeachers, getSchool, deleteStudent, updateStudent } = useData();
-  const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "" });
@@ -35,29 +35,29 @@ const SchoolStudents = () => {
     return teachers.filter((t) => t.classes.some((c) => c.startsWith(form.class)));
   }, [form.class, teachers]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.fatherName || !form.class || !form.section || !form.rollNo || !form.teacherId) {
       toast.error("Fill all required fields including teacher assignment");
       return;
     }
+    setIsSubmitting(true);
     const customUsername = form.username.trim() || undefined;
     const customPassword = form.password.trim() || undefined;
-    const student = addStudent({ ...form, schoolId }, customUsername, customPassword);
-    addDemoUser(student.username, student.password, {
-      id: student.id, username: student.username, role: "student",
-      displayName: form.name, schoolName: user?.schoolName || user?.displayName,
-      className: `${form.class} (${form.section})`,
-    });
-    toast.success(`Student created! Username: ${student.username} | Password: ${student.password}`);
-    setForm({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "", username: "", password: "" });
-    setShowForm(false);
+    const student = await addStudent({ ...form, schoolId }, customUsername, customPassword);
+    if (student) {
+      toast.success(`Student created! Username: ${student.username} | Password: ${student.password}`);
+      setForm({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "", username: "", password: "" });
+      setShowForm(false);
+    } else {
+      toast.error("Failed to create student.");
+    }
+    setIsSubmitting(false);
   };
 
-  const handleDelete = (studentId: string, studentName: string) => {
+  const handleDelete = async (studentId: string, studentName: string) => {
     if (!confirm(`Delete student "${studentName}"?`)) return;
-    const removedUsername = deleteStudent(studentId);
-    if (removedUsername) removeDemoUser(removedUsername);
+    await deleteStudent(studentId);
     toast.success(`Student "${studentName}" deleted.`);
   };
 
@@ -79,12 +79,12 @@ const SchoolStudents = () => {
     setEditForm({ name: s.name, fatherName: s.fatherName, class: s.class, section: s.section, rollNo: s.rollNo, teacherId: s.teacherId });
   };
 
-  const saveEdit = (studentId: string) => {
+  const saveEdit = async (studentId: string) => {
     if (!editForm.name || !editForm.fatherName) {
       toast.error("Name fields cannot be empty");
       return;
     }
-    updateStudent(studentId, editForm);
+    await updateStudent(studentId, editForm);
     toast.success("Student updated.");
     setEditingId(null);
   };
@@ -181,13 +181,12 @@ const SchoolStudents = () => {
   };
 
   // Process bulk upload - use addStudentsBulk for atomicity
-  const processBulkUpload = () => {
+  const processBulkUpload = async () => {
     if (bulkPreview.length === 0) return;
 
     const errors: string[] = [];
     const validStudents: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[] = [];
 
-    // Build case-insensitive section lookup
     const sectionLookup = new Map(SECTION_OPTIONS.map(s => [s.toLowerCase(), s]));
 
     bulkPreview.forEach((row, idx) => {
@@ -221,7 +220,7 @@ const SchoolStudents = () => {
           `${t.firstName} ${t.lastName}`.toLowerCase() === teacherName.toLowerCase()
         );
         if (!matchingTeacher) {
-          errors.push(`Row ${idx + 2}: Teacher "${teacherName}" not found. Available: ${teachers.map(t => `${t.firstName} ${t.lastName}`).join(", ")}`);
+          errors.push(`Row ${idx + 2}: Teacher "${teacherName}" not found.`);
           return;
         }
         if (!matchingTeacher.classes.some((c) => c.startsWith(cls))) {
@@ -249,25 +248,17 @@ const SchoolStudents = () => {
     }
 
     if (validStudents.length > 0) {
-      // Use addStudentsBulk to create all at once (fixes stale state bug)
-      const created = addStudentsBulk(validStudents.map(s => ({
+      setIsSubmitting(true);
+      const created = await addStudentsBulk(validStudents.map(s => ({
         name: s.name, fatherName: s.fatherName, class: s.class, section: s.section,
         rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId,
         customUsername: s.customUsername, customPassword: s.customPassword,
       })));
 
-      // Register demo users for all created students
-      created.forEach((student, i) => {
-        addDemoUser(student.username, student.password, {
-          id: student.id, username: student.username, role: "student",
-          displayName: validStudents[i].name, schoolName: user?.schoolName || user?.displayName,
-          className: `${validStudents[i].class} (${validStudents[i].section})`,
-        });
-      });
-
       toast.success(`${created.length} student(s) created successfully!`);
       setBulkPreview([]);
       setShowBulkUpload(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -396,7 +387,7 @@ const SchoolStudents = () => {
             </div>
             <div className="md:col-span-2 flex justify-end gap-3 mt-4">
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button type="submit" variant="hero">Create Student</Button>
+              <Button type="submit" variant="hero" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Student"}</Button>
             </div>
           </form>
         </motion.div>
