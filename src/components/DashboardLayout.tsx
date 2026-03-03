@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import dashboardBg from "@/assets/dashboard-bg.jpg";
 import {
   LayoutDashboard, School, Users, BookOpen, Trophy, Settings, LogOut, GraduationCap,
-  BarChart3, Code, Sparkles, FileText, Gamepad2, Award, UserCircle
+  BarChart3, Code, FileText, Gamepad2, Award, UserCircle
 } from "lucide-react";
 
 interface NavItem {
@@ -36,7 +36,6 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { icon: BookOpen, label: "My Classes", path: "/dashboard/classes" },
     { icon: FileText, label: "Assignments", path: "/dashboard/assignments" },
     { icon: Code, label: "Projects", path: "/dashboard/projects" },
-    { icon: Sparkles, label: "AI Generator", path: "/dashboard/ai-generator" },
     { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
     { icon: Settings, label: "Change Password", path: "/dashboard/settings" },
   ],
