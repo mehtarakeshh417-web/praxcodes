@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ParticleBackground from "@/components/ParticleBackground";
-import { LogIn, Sparkles, AlertCircle } from "lucide-react";
+import { LogIn, AlertCircle, ShieldCheck } from "lucide-react";
 
 const Login = () => {
   const [username, setUsername] = useState("");
@@ -23,7 +23,6 @@ const Login = () => {
     const success = await login(username.trim(), password);
     setLoading(false);
     if (success) {
-      // Role-based redirect handled by App.tsx
       navigate("/dashboard");
     } else {
       setError("Invalid credentials. Please try again.");
@@ -39,36 +38,46 @@ const Login = () => {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="glass-card p-8 neon-glow-blue">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center mx-auto mb-4 neon-glow-blue">
-              <Sparkles className="w-8 h-8 text-cyber-darker" />
-            </div>
-            <h1 className="font-display text-2xl font-bold text-gradient-brand">CodeChamps</h1>
-            <p className="text-white/50 font-body text-sm mt-2">Sign in to your account</p>
+        <div className="glass-card p-10 neon-glow-blue">
+          {/* Logo & Title */}
+          <div className="text-center mb-10">
+            <motion.div
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+            >
+              <img
+                src="/assets/logo.jpg"
+                alt="CodeChamps logo"
+                className="w-24 h-24 rounded-2xl object-contain mx-auto mb-5 ring-2 ring-primary/30 shadow-lg shadow-primary/20"
+              />
+            </motion.div>
+            <h1 className="font-display text-3xl font-bold text-gradient-brand tracking-wide">CodeChamps</h1>
+            <p className="text-white/50 font-body text-sm mt-2">Welcome back — sign in to continue</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-white/70 font-body">Username</Label>
+              <Label htmlFor="username" className="text-white/70 font-body text-sm">Username</Label>
               <Input
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary font-body"
+                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary font-body text-base"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-white/70 font-body">Password</Label>
+              <Label htmlFor="password" className="text-white/70 font-body text-sm">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary font-body"
+                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary font-body text-base"
                 required
               />
             </div>
@@ -77,20 +86,27 @@ const Login = () => {
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 text-destructive text-sm font-body"
+                className="flex items-center gap-2 text-destructive text-sm font-body bg-destructive/10 rounded-lg px-3 py-2"
               >
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 {error}
               </motion.div>
             )}
 
-            <Button type="submit" variant="hero" size="lg" className="w-full" disabled={loading}>
+            <Button type="submit" variant="hero" size="lg" className="w-full h-12 text-base" disabled={loading}>
               <LogIn className="w-5 h-5" />
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-white/10 text-center">
+          {/* Security badge */}
+          <div className="mt-6 flex items-center justify-center gap-1.5 text-white/30 text-xs font-body">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Secured with PIN & security questions
+          </div>
+
+          {/* Back link */}
+          <div className="mt-4 pt-4 border-t border-white/10 text-center">
             <button onClick={() => navigate("/")} className="text-primary/70 hover:text-primary text-sm font-body transition-colors">
               ← Back to Home
             </button>
