@@ -36,24 +36,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const DEFAULT_ADMIN: { password: string; user: AuthUser } = {
+  password: "admin",
+  user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
+};
+
 const getStoredUsers = (): Record<string, { password: string; user: AuthUser }> => {
-  const stored = sessionStorage.getItem("codechamps_users");
+  const stored = localStorage.getItem("codechamps_users");
   if (stored) return JSON.parse(stored);
-  return {
-    admin: {
-      password: "admin",
-      user: { id: "1", username: "admin", role: "admin", displayName: "Master Admin" },
-    },
-  };
+  // First-ever launch: seed default admin and persist it
+  const initial = { admin: DEFAULT_ADMIN };
+  localStorage.setItem("codechamps_users", JSON.stringify(initial));
+  return initial;
 };
 
 const saveUsers = (users: Record<string, { password: string; user: AuthUser }>) => {
-  sessionStorage.setItem("codechamps_users", JSON.stringify(users));
+  localStorage.setItem("codechamps_users", JSON.stringify(users));
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = sessionStorage.getItem("codechamps_user");
+    const stored = localStorage.getItem("codechamps_user");
     return stored ? JSON.parse(stored) : null;
   });
   const [demoUsers, setDemoUsers] = useState(getStoredUsers);
@@ -63,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const entry = current[username];
     if (entry && entry.password === password) {
       setUser(entry.user);
-      sessionStorage.setItem("codechamps_user", JSON.stringify(entry.user));
+      localStorage.setItem("codechamps_user", JSON.stringify(entry.user));
       return true;
     }
     return false;
@@ -71,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     setUser(null);
-    sessionStorage.removeItem("codechamps_user");
+    localStorage.removeItem("codechamps_user");
   }, []);
 
   const addDemoUser = useCallback((username: string, password: string, userData: AuthUser) => {
@@ -123,13 +126,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getSecurityStore = (): Record<string, UserSecurity> => {
     try {
-      const stored = sessionStorage.getItem("codechamps_security");
+      const stored = localStorage.getItem("codechamps_security");
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   };
 
   const saveSecurityStore = (data: Record<string, UserSecurity>) => {
-    sessionStorage.setItem("codechamps_security", JSON.stringify(data));
+    localStorage.setItem("codechamps_security", JSON.stringify(data));
   };
 
   const hasSecuritySetup = useCallback((): boolean => {
