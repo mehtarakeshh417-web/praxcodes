@@ -4,6 +4,7 @@ export interface SchoolData {
   id: string;
   name: string;
   address: string;
+  state: string;
   city: string;
   phone: string;
   username: string;
