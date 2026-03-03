@@ -25,7 +25,7 @@ const StudentCurriculum = () => {
 
   const [completedTopics, setCompletedTopics] = useState<string[]>(() => {
     try {
-      const stored = sessionStorage.getItem(`cc_completed_${user?.id}`);
+      const stored = localStorage.getItem(`cc_completed_${user?.id}`);
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
@@ -37,7 +37,7 @@ const StudentCurriculum = () => {
   const toggleComplete = useCallback((topicId: string) => {
     setCompletedTopics((prev) => {
       const next = prev.includes(topicId) ? prev.filter((id) => id !== topicId) : [...prev, topicId];
-      sessionStorage.setItem(`cc_completed_${user?.id}`, JSON.stringify(next));
+      localStorage.setItem(`cc_completed_${user?.id}`, JSON.stringify(next));
       if (!prev.includes(topicId)) {
         toast.success("Topic completed! +50 XP 🎉");
       }
@@ -160,14 +160,22 @@ interface TopicCardProps {
 
 const TopicCard = ({ topic, isCompleted, isExpanded, onToggleExpand, onToggleComplete, viewingLesson, onViewLesson }: TopicCardProps) => (
   <div>
-    <button onClick={onToggleExpand} className={`w-full p-4 rounded-xl border transition-all text-left flex items-center gap-3 ${isCompleted ? "bg-[hsl(145,80%,50%,0.08)] border-[hsl(145,80%,50%,0.3)]" : "bg-white/5 border-white/10 hover:bg-white/8"}`}>
-      {isCompleted ? <CheckCircle2 className="w-5 h-5 text-neon-green shrink-0" /> : <Circle className="w-5 h-5 text-white/30 shrink-0" />}
-      <div className="flex-1">
-        <span className="font-body text-sm font-semibold text-white">{topic.title}</span>
-        <span className="text-xs text-white/40 ml-2">{topic.lessons.length} lessons · {topic.activities.length} activities</span>
-      </div>
-      {isExpanded ? <ChevronDown className="w-4 h-4 text-white/40" /> : <ChevronRight className="w-4 h-4 text-white/40" />}
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+        className="shrink-0"
+        title={isCompleted ? "Mark as incomplete" : "Mark as complete"}
+      >
+        {isCompleted ? <CheckCircle2 className="w-5 h-5 text-neon-green" /> : <Circle className="w-5 h-5 text-white/40 hover:text-white/60" />}
+      </button>
+      <button onClick={onToggleExpand} className={`flex-1 p-4 rounded-xl border transition-all text-left flex items-center gap-3 ${isCompleted ? "bg-[hsl(145,80%,50%,0.08)] border-[hsl(145,80%,50%,0.3)]" : "bg-white/5 border-white/10 hover:bg-white/8"}`}>
+        <div className="flex-1">
+          <span className="font-body text-sm font-semibold text-white">{topic.title}</span>
+          <span className="text-xs text-white/50 ml-2">{topic.lessons.length} lessons · {topic.activities.length} activities</span>
+        </div>
+        {isExpanded ? <ChevronDown className="w-4 h-4 text-white/50" /> : <ChevronRight className="w-4 h-4 text-white/50" />}
+      </button>
+    </div>
 
     <AnimatePresence>
       {isExpanded && (
@@ -212,18 +220,6 @@ const TopicCard = ({ topic, isCompleted, isExpanded, onToggleExpand, onToggleCom
               ))}
             </div>
 
-            {/* Mark Complete Button */}
-            <div className="pt-2 px-2">
-              <Button
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-                className={isCompleted
-                  ? "bg-neon-green/20 text-neon-green border border-neon-green/30 hover:bg-neon-green/30"
-                  : "bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25"}
-              >
-                {isCompleted ? <><CheckCircle2 className="w-4 h-4 mr-1" /> Completed</> : <><Circle className="w-4 h-4 mr-1" /> Mark Complete</>}
-              </Button>
-            </div>
           </div>
         </motion.div>
       )}

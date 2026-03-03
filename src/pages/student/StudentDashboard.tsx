@@ -27,7 +27,7 @@ const StudentDashboard = () => {
   const curriculum = useMemo(() => getCurriculumForClass(user?.className || ""), [user?.className]);
   const completedTopics = useMemo(() => {
     try {
-      const stored = sessionStorage.getItem(`cc_completed_${user?.id}`);
+      const stored = localStorage.getItem(`cc_completed_${user?.id}`);
       return stored ? JSON.parse(stored) as string[] : [];
     } catch { return []; }
   }, [user?.id]);
@@ -66,7 +66,7 @@ const StudentDashboard = () => {
         <h1 className="font-display text-3xl font-bold mb-1">
           Hey, <span className="text-gradient-brand">{user?.displayName}</span>! 🚀
         </h1>
-        <p className="text-white/60 font-body mb-2">{user?.className} {student?.section && `· Section ${student.section}`}</p>
+        <p className="text-white/70 font-body mb-2">{user?.className} {student?.section && `· Section ${student.section}`}</p>
       </motion.div>
 
       {/* XP Bar */}

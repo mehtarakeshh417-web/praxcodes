@@ -56,7 +56,7 @@ const StudentAchievements = () => {
   const curriculum = useMemo(() => getCurriculumForClass(user?.className || ""), [user?.className]);
   const completedTopics = useMemo(() => {
     try {
-      const stored = sessionStorage.getItem(`cc_completed_${user?.id}`);
+      const stored = localStorage.getItem(`cc_completed_${user?.id}`);
       return stored ? JSON.parse(stored) as string[] : [];
     } catch { return []; }
   }, [user?.id]);

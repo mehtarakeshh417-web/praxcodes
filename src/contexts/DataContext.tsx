@@ -73,13 +73,13 @@ const generatePassword = () => Math.random().toString(36).slice(-8);
 // Persistence helpers
 const loadState = <T,>(key: string, fallback: T): T => {
   try {
-    const stored = sessionStorage.getItem(key);
+    const stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : fallback;
   } catch { return fallback; }
 };
 
 const saveState = (key: string, value: unknown) => {
-  sessionStorage.setItem(key, JSON.stringify(value));
+  localStorage.setItem(key, JSON.stringify(value));
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
