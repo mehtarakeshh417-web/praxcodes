@@ -1,6 +1,9 @@
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardLayout from "@/components/DashboardLayout";
+import SecuritySetup from "@/components/SecuritySetup";
 import { Routes, Route } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import AdminDashboard from "./admin/AdminDashboard";
 import AdminSchools from "./admin/AdminSchools";
 import AdminAnalytics from "./admin/AdminAnalytics";
@@ -76,15 +79,32 @@ const studentRoutes = (
 const routeMap = { admin: adminRoutes, school: schoolRoutes, teacher: teacherRoutes, student: studentRoutes };
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, hasSecuritySetup, setupSecurity } = useAuth();
+  const [showSecuritySetup, setShowSecuritySetup] = useState(false);
+
+  useEffect(() => {
+    if (user && !hasSecuritySetup()) {
+      setShowSecuritySetup(true);
+    }
+  }, [user, hasSecuritySetup]);
+
   if (!user) return null;
 
+  const handleSecurityComplete = (pin: string, question: string, answer: string) => {
+    setupSecurity(pin, question, answer);
+    setShowSecuritySetup(false);
+    toast.success("Security setup complete! Your PIN and security question are saved.");
+  };
+
   return (
-    <DashboardLayout>
-      <Routes>
-        {routeMap[user.role]}
-      </Routes>
-    </DashboardLayout>
+    <>
+      {showSecuritySetup && <SecuritySetup onComplete={handleSecurityComplete} />}
+      <DashboardLayout>
+        <Routes>
+          {routeMap[user.role]}
+        </Routes>
+      </DashboardLayout>
+    </>
   );
 };
 
