@@ -5,37 +5,92 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, X, Trash2 } from "lucide-react";
+import { Users, Plus, X, Trash2, Edit2, Check } from "lucide-react";
 import { toast } from "sonner";
 
-const CLASS_OPTIONS = ["1st", "2nd", "3rd", "4th", "5th (A)", "5th (B)", "6th (A)", "6th (B)", "7th (A)", "7th (B)", "8th (A)", "8th (B)"];
+const CLASS_LIST = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+const SECTION_LIST = ["A", "B", "C", "D", "E"];
 
 const SchoolTeachers = () => {
   const { user } = useAuth();
-  const { addTeacher, getSchoolTeachers, deleteTeacher } = useData();
+  const { addTeacher, getSchoolTeachers, deleteTeacher, updateTeacher } = useData();
   const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", classes: [] as string[], username: "", password: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", classes: [] as string[] });
+  const [form, setForm] = useState({ firstName: "", lastName: "", username: "", password: "" });
+  const [selectedClasses, setSelectedClasses] = useState<Record<string, string[]>>({});
 
   const schoolId = user?.id || "";
   const teachers = getSchoolTeachers(schoolId);
 
-  const toggleClass = (cls: string) => {
-    setForm((f) => ({ ...f, classes: f.classes.includes(cls) ? f.classes.filter((c) => c !== cls) : [...f.classes, cls] }));
+  const toggleClassSelection = (cls: string) => {
+    setSelectedClasses((prev) => {
+      const updated = { ...prev };
+      if (updated[cls]) {
+        delete updated[cls];
+      } else {
+        updated[cls] = ["A"]; // default section A
+      }
+      return updated;
+    });
+  };
+
+  const toggleSection = (cls: string, section: string) => {
+    setSelectedClasses((prev) => {
+      const updated = { ...prev };
+      const sections = updated[cls] || [];
+      if (sections.includes(section)) {
+        const filtered = sections.filter((s) => s !== section);
+        if (filtered.length === 0) {
+          delete updated[cls];
+        } else {
+          updated[cls] = filtered;
+        }
+      } else {
+        updated[cls] = [...sections, section];
+      }
+      return updated;
+    });
+  };
+
+  const getClassStrings = (selected: Record<string, string[]>) => {
+    const result: string[] = [];
+    Object.entries(selected).forEach(([cls, sections]) => {
+      sections.forEach((sec) => result.push(`${cls}-${sec}`));
+    });
+    return result;
+  };
+
+  const parseClassStrings = (classes: string[]): Record<string, string[]> => {
+    const result: Record<string, string[]> = {};
+    classes.forEach((c) => {
+      const parts = c.split("-");
+      const cls = parts[0];
+      const sec = parts[1] || "A";
+      if (!result[cls]) result[cls] = [];
+      result[cls].push(sec);
+    });
+    return result;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || form.classes.length === 0) { toast.error("Fill all fields and select at least one class"); return; }
+    const classStrings = getClassStrings(selectedClasses);
+    if (!form.firstName || !form.lastName || classStrings.length === 0) {
+      toast.error("Fill all fields and select at least one class with section");
+      return;
+    }
     const customUsername = form.username.trim() || undefined;
     const customPassword = form.password.trim() || undefined;
-    const teacher = addTeacher({ ...form, schoolId }, customUsername, customPassword);
+    const teacher = addTeacher({ firstName: form.firstName, lastName: form.lastName, classes: classStrings, schoolId }, customUsername, customPassword);
     addDemoUser(teacher.username, teacher.password, {
       id: teacher.id, username: teacher.username, role: "teacher",
       displayName: `${form.firstName} ${form.lastName}`, schoolName: user?.schoolName || user?.displayName,
     });
     toast.success(`Teacher created! Username: ${teacher.username} | Password: ${teacher.password}`);
-    setForm({ firstName: "", lastName: "", classes: [], username: "", password: "" });
+    setForm({ firstName: "", lastName: "", username: "", password: "" });
+    setSelectedClasses({});
     setShowForm(false);
   };
 
@@ -48,6 +103,26 @@ const SchoolTeachers = () => {
     }
     result.removedUsernames.forEach((u) => removeDemoUser(u));
     toast.success(`Teacher "${teacherName}" deleted.`);
+  };
+
+  const startEdit = (t: typeof teachers[0]) => {
+    setEditingId(t.id);
+    setEditForm({ firstName: t.firstName, lastName: t.lastName, classes: t.classes });
+  };
+
+  const saveEdit = (teacherId: string) => {
+    if (!editForm.firstName || !editForm.lastName) {
+      toast.error("Name fields cannot be empty");
+      return;
+    }
+    updateTeacher(teacherId, { firstName: editForm.firstName, lastName: editForm.lastName, classes: editForm.classes });
+    toast.success("Teacher updated.");
+    setEditingId(null);
+  };
+
+  const formatClassDisplay = (classes: string[]) => {
+    const grouped = parseClassStrings(classes);
+    return Object.entries(grouped).map(([cls, sections]) => `${cls} (${sections.join(",")})`).join(", ");
   };
 
   return (
@@ -87,19 +162,43 @@ const SchoolTeachers = () => {
                 <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Auto-generated if left blank" className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-white/80 font-body font-medium">Teaching Classes *</Label>
-              <div className="flex flex-wrap gap-2">
-                {CLASS_OPTIONS.map((cls) => (
-                  <button key={cls} type="button" onClick={() => toggleClass(cls)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-body font-medium transition-all ${form.classes.includes(cls) ? "bg-neon-blue/20 text-neon-blue border border-neon-blue/40" : "bg-white/10 text-white/60 border border-white/20 hover:bg-white/15"}`}>
-                    {cls}
-                  </button>
-                ))}
+
+            {/* Class & Section Selection */}
+            <div className="space-y-3">
+              <Label className="text-white/80 font-body font-medium">Assign Classes & Sections *</Label>
+              <div className="space-y-2">
+                {CLASS_LIST.map((cls) => {
+                  const isSelected = !!selectedClasses[cls];
+                  return (
+                    <div key={cls} className={`rounded-xl border p-3 transition-all ${isSelected ? "border-primary/40 bg-primary/5" : "border-white/10 bg-white/5"}`}>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => toggleClassSelection(cls)}
+                          className={`w-6 h-6 rounded-md border flex items-center justify-center transition-all ${isSelected ? "bg-primary border-primary text-white" : "border-white/30"}`}>
+                          {isSelected && <Check className="w-4 h-4" />}
+                        </button>
+                        <span className="font-body text-sm text-white/90 font-medium">Class {cls}</span>
+                        {isSelected && (
+                          <div className="flex gap-1.5 ml-auto">
+                            {SECTION_LIST.map((sec) => {
+                              const secSelected = selectedClasses[cls]?.includes(sec);
+                              return (
+                                <button key={sec} type="button" onClick={() => toggleSection(cls, sec)}
+                                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${secSelected ? "bg-neon-green/20 text-neon-green border border-neon-green/40" : "bg-white/10 text-white/50 border border-white/15 hover:bg-white/15"}`}>
+                                  {sec}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
             <div className="flex justify-end gap-3 mt-4">
-              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setSelectedClasses({}); }}>Cancel</Button>
               <Button type="submit" variant="hero">Create Teacher</Button>
             </div>
           </form>
@@ -114,21 +213,35 @@ const SchoolTeachers = () => {
       ) : (
         <div className="space-y-3">
           {teachers.map((t, i) => (
-            <motion.div key={t.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="glass-card p-4 flex items-center justify-between">
-              <div>
-                <span className="font-body font-bold text-white">{t.firstName} {t.lastName}</span>
-                <span className="text-white/50 text-xs ml-3">@{t.username}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex gap-2">
-                  {t.classes.map((cls) => (
-                    <span key={cls} className="px-2 py-0.5 rounded bg-neon-blue/15 text-neon-blue text-xs font-medium">{cls}</span>
-                  ))}
+            <motion.div key={t.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="glass-card p-4">
+              {editingId === t.id ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} className="bg-white/10 border-white/20 text-white" />
+                    <Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} className="bg-white/10 border-white/20 text-white" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="hero" onClick={() => saveEdit(t.id)}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(t.id, `${t.firstName} ${t.lastName}`)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-body font-bold text-white">{t.firstName} {t.lastName}</span>
+                    <span className="text-white/50 text-xs ml-3">@{t.username}</span>
+                    <div className="text-xs text-white/40 mt-1">{formatClassDisplay(t.classes)}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-neon-blue shrink-0" onClick={() => startEdit(t)}>
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(t.id, `${t.firstName} ${t.lastName}`)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>

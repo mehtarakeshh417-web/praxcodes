@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import StatCard from "@/components/StatCard";
 import { useData } from "@/contexts/DataContext";
 import { School, Users, GraduationCap, Activity, TrendingUp, Globe } from "lucide-react";
 
 const AdminDashboard = () => {
   const { schools, teachers, students } = useData();
+  const navigate = useNavigate();
+
   return (
     <div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -15,14 +18,53 @@ const AdminDashboard = () => {
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard icon={School} label="Total Schools" value={schools.length} glowClass="neon-glow-purple" delay={0.1} />
-        <StatCard icon={Users} label="Total Teachers" value={teachers.length} glowClass="neon-glow-blue" delay={0.2} />
-        <StatCard icon={GraduationCap} label="Total Students" value={students.length} glowClass="neon-glow-green" delay={0.3} />
+        <StatCard icon={School} label="Total Schools" value={schools.length} glowClass="neon-glow-purple" delay={0.1} expandable>
+          {schools.length === 0 ? (
+            <p className="text-white/40 text-sm font-body">No schools yet</p>
+          ) : (
+            <div className="space-y-2">
+              {schools.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-1 cursor-pointer hover:bg-white/5 rounded px-2 -mx-2" onClick={() => navigate("/dashboard/schools")}>
+                  <span className="text-sm text-white/80 font-body">{s.name}</span>
+                  <span className="text-xs text-white/40">{s.city}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatCard>
+        <StatCard icon={Users} label="Total Teachers" value={teachers.length} glowClass="neon-glow-blue" delay={0.2} expandable>
+          {teachers.length === 0 ? (
+            <p className="text-white/40 text-sm font-body">No teachers yet</p>
+          ) : (
+            <div className="space-y-2">
+              {teachers.map((t) => (
+                <div key={t.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm text-white/80 font-body">{t.firstName} {t.lastName}</span>
+                  <span className="text-xs text-white/40">@{t.username}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatCard>
+        <StatCard icon={GraduationCap} label="Total Students" value={students.length} glowClass="neon-glow-green" delay={0.3} expandable>
+          {students.length === 0 ? (
+            <p className="text-white/40 text-sm font-body">No students yet</p>
+          ) : (
+            <div className="space-y-2">
+              {students.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm text-white/80 font-body">{s.name}</span>
+                  <span className="text-xs text-white/40">{s.class} ({s.section})</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatCard>
         <StatCard icon={Activity} label="Active Today" value={0} glowClass="neon-glow-orange" delay={0.4} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="glass-card p-6">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="glass-card p-6 cursor-pointer hover:border-white/25 transition-colors" onClick={() => navigate("/dashboard/schools")}>
           <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white">
             <TrendingUp className="w-5 h-5 text-neon-green" /> Schools
           </h2>
