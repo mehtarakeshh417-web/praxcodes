@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useData } from "@/contexts/DataContext";
 import StatCard from "@/components/StatCard";
@@ -15,6 +16,7 @@ const xpLevel = (xp: number) => {
 const StudentDashboard = () => {
   const { user } = useAuth();
   const { students } = useData();
+  const navigate = useNavigate();
 
   const student = students.find((s) => s.id === user?.id);
   const xp = student?.xp || 0;
@@ -48,25 +50,19 @@ const StudentDashboard = () => {
           </div>
         </div>
         <div className="w-full h-4 rounded-full bg-white/10 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 1, delay: 0.3 }}
-            className="h-full rounded-full bg-gradient-to-r from-neon-green to-neon-blue"
-          />
+          <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1, delay: 0.3 }} className="h-full rounded-full bg-gradient-to-r from-neon-green to-neon-blue" />
         </div>
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard icon={Target} label="Assignments Done" value={0} glowClass="neon-glow-blue" delay={0.2} />
-        <StatCard icon={Code} label="Projects Completed" value={0} glowClass="neon-glow-green" delay={0.3} />
-        <StatCard icon={Trophy} label="School Rank" value="—" glowClass="neon-glow-purple" delay={0.4} />
-        <StatCard icon={Star} label="Badges Earned" value={0} glowClass="neon-glow-orange" delay={0.5} />
+        <StatCard icon={Target} label="Assignments Done" value={0} glowClass="neon-glow-blue" delay={0.2} onClick={() => navigate("/dashboard/assignments")} />
+        <StatCard icon={Code} label="Projects Completed" value={0} glowClass="neon-glow-green" delay={0.3} onClick={() => navigate("/dashboard/coding-lab")} />
+        <StatCard icon={Trophy} label="School Rank" value="—" glowClass="neon-glow-purple" delay={0.4} onClick={() => navigate("/dashboard/leaderboard")} />
+        <StatCard icon={Star} label="Badges Earned" value={0} glowClass="neon-glow-orange" delay={0.5} onClick={() => navigate("/dashboard/achievements")} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Technologies */}
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="glass-card p-6">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="glass-card p-6 cursor-pointer hover:border-white/25 transition-colors" onClick={() => navigate("/dashboard/curriculum")}>
           <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white">
             <BookOpen className="w-5 h-5 text-neon-blue" /> My Technologies
           </h2>
@@ -76,8 +72,7 @@ const StudentDashboard = () => {
           </div>
         </motion.div>
 
-        {/* Badges */}
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.7 }} className="glass-card p-6">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.7 }} className="glass-card p-6 cursor-pointer hover:border-white/25 transition-colors" onClick={() => navigate("/dashboard/achievements")}>
           <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white">
             <Gamepad2 className="w-5 h-5 text-neon-purple" /> Achievement Badges
           </h2>

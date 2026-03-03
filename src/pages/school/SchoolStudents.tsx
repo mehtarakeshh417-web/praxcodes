@@ -1,37 +1,50 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Plus, X, Upload, Trash2, AlertTriangle } from "lucide-react";
+import { GraduationCap, Plus, X, Upload, Trash2, AlertTriangle, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
 const CLASS_OPTIONS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
-const SECTION_OPTIONS = ["A", "B", "C"];
+const SECTION_OPTIONS = ["A", "B", "C", "D", "E"];
 
 const SchoolStudents = () => {
   const { user } = useAuth();
-  const { addStudent, getSchoolStudents, getSchoolTeachers, deleteStudent } = useData();
+  const { addStudent, getSchoolStudents, getSchoolTeachers, deleteStudent, updateStudent } = useData();
   const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "" });
   const [form, setForm] = useState({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "", username: "", password: "" });
 
   const schoolId = user?.id || "";
   const students = getSchoolStudents(schoolId);
   const teachers = getSchoolTeachers(schoolId);
 
+  // Filter teachers by selected class — show teachers assigned to any section of that class
+  const filteredTeachers = useMemo(() => {
+    if (!form.class) return [];
+    return teachers.filter((t) =>
+      t.classes.some((c) => c.startsWith(form.class))
+    );
+  }, [form.class, teachers]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.fatherName || !form.class || !form.rollNo || !form.teacherId) { toast.error("Fill all required fields including teacher assignment"); return; }
+    if (!form.name || !form.fatherName || !form.class || !form.section || !form.rollNo || !form.teacherId) {
+      toast.error("Fill all required fields including teacher assignment");
+      return;
+    }
     const customUsername = form.username.trim() || undefined;
     const customPassword = form.password.trim() || undefined;
     const student = addStudent({ ...form, schoolId }, customUsername, customPassword);
     addDemoUser(student.username, student.password, {
       id: student.id, username: student.username, role: "student",
       displayName: form.name, schoolName: user?.schoolName || user?.displayName,
-      className: `${form.class} (${form.section || "A"})`,
+      className: `${form.class} (${form.section})`,
     });
     toast.success(`Student created! Username: ${student.username} | Password: ${student.password}`);
     setForm({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "", username: "", password: "" });
@@ -56,6 +69,21 @@ const SchoolStudents = () => {
   const getTeacherName = (teacherId: string) => {
     const t = teachers.find((t) => t.id === teacherId);
     return t ? `${t.firstName} ${t.lastName}` : "Unknown";
+  };
+
+  const startEdit = (s: typeof students[0]) => {
+    setEditingId(s.id);
+    setEditForm({ name: s.name, fatherName: s.fatherName, class: s.class, section: s.section, rollNo: s.rollNo, teacherId: s.teacherId });
+  };
+
+  const saveEdit = (studentId: string) => {
+    if (!editForm.name || !editForm.fatherName) {
+      toast.error("Name fields cannot be empty");
+      return;
+    }
+    updateStudent(studentId, editForm);
+    toast.success("Student updated.");
+    setEditingId(null);
   };
 
   return (
@@ -97,13 +125,13 @@ const SchoolStudents = () => {
             </div>
             <div className="space-y-2">
               <Label className="text-white/80 font-body font-medium">Class *</Label>
-              <select value={form.class} onChange={(e) => setForm({ ...form, class: e.target.value })} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
+              <select value={form.class} onChange={(e) => setForm({ ...form, class: e.target.value, teacherId: "" })} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
                 <option value="" className="bg-cyber-dark">Select class</option>
                 {CLASS_OPTIONS.map((c) => <option key={c} value={c} className="bg-cyber-dark">{c}</option>)}
               </select>
             </div>
             <div className="space-y-2">
-              <Label className="text-white/80 font-body font-medium">Section</Label>
+              <Label className="text-white/80 font-body font-medium">Section *</Label>
               <select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
                 <option value="" className="bg-cyber-dark">Select section</option>
                 {SECTION_OPTIONS.map((s) => <option key={s} value={s} className="bg-cyber-dark">{s}</option>)}
@@ -114,10 +142,10 @@ const SchoolStudents = () => {
               <Input value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} placeholder="Roll number" className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
             </div>
             <div className="space-y-2">
-              <Label className="text-white/80 font-body font-medium">Assign Teacher *</Label>
-              <select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
-                <option value="" className="bg-cyber-dark">Select teacher</option>
-                {teachers.map((t) => <option key={t.id} value={t.id} className="bg-cyber-dark">{t.firstName} {t.lastName} ({t.classes.join(", ")})</option>)}
+              <Label className="text-white/80 font-body font-medium">Assign Teacher * {!form.class && <span className="text-white/40">(select class first)</span>}</Label>
+              <select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })} disabled={!form.class} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm disabled:opacity-40">
+                <option value="" className="bg-cyber-dark">{form.class ? (filteredTeachers.length === 0 ? "No teachers for this class" : "Select teacher") : "Select class first"}</option>
+                {filteredTeachers.map((t) => <option key={t.id} value={t.id} className="bg-cyber-dark">{t.firstName} {t.lastName} ({t.classes.join(", ")})</option>)}
               </select>
             </div>
             <div className="space-y-2">
@@ -144,21 +172,40 @@ const SchoolStudents = () => {
       ) : (
         <div className="space-y-2">
           {students.map((s, i) => (
-            <motion.div key={s.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} className="glass-card p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="font-body font-bold text-white">{s.name}</span>
-                <span className="text-white/50 text-xs">@{s.username}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex gap-3 text-xs text-white/60">
-                  <span className="px-2 py-0.5 rounded bg-neon-green/15 text-neon-green font-medium">{s.class} ({s.section || "A"})</span>
-                  <span>Roll: {s.rollNo}</span>
-                  <span className="text-white/40">Teacher: {getTeacherName(s.teacherId)}</span>
+            <motion.div key={s.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} className="glass-card p-4">
+              {editingId === s.id ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Name" className="bg-white/10 border-white/20 text-white" />
+                    <Input value={editForm.fatherName} onChange={(e) => setEditForm({ ...editForm, fatherName: e.target.value })} placeholder="Father's name" className="bg-white/10 border-white/20 text-white" />
+                    <Input value={editForm.rollNo} onChange={(e) => setEditForm({ ...editForm, rollNo: e.target.value })} placeholder="Roll No" className="bg-white/10 border-white/20 text-white" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="hero" onClick={() => saveEdit(s.id)}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(s.id, s.name)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="font-body font-bold text-white">{s.name}</span>
+                    <span className="text-white/50 text-xs">@{s.username}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-3 text-xs text-white/60">
+                      <span className="px-2 py-0.5 rounded bg-neon-green/15 text-neon-green font-medium">{s.class} ({s.section || "A"})</span>
+                      <span>Roll: {s.rollNo}</span>
+                      <span className="text-white/40">Teacher: {getTeacherName(s.teacherId)}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-neon-blue shrink-0" onClick={() => startEdit(s)}>
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(s.id, s.name)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>
