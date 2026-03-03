@@ -87,18 +87,42 @@ const SchoolStudents = () => {
     setEditingId(null);
   };
 
+  // Normalize class input: "5" → "5th", "1" → "1st", etc.
+  const normalizeClass = (cls: string): string => {
+    const trimmed = cls.trim();
+    if (CLASS_OPTIONS.includes(trimmed)) return trimmed;
+    const num = parseInt(trimmed, 10);
+    if (isNaN(num) || num < 1 || num > 8) return trimmed;
+    const suffixes: Record<number, string> = { 1: "1st", 2: "2nd", 3: "3rd" };
+    return suffixes[num] || `${num}th`;
+  };
+
   // Download Excel template
   const downloadTemplate = () => {
+    const teacherNames = teachers.map((t) => `${t.firstName} ${t.lastName}`).join(", ");
+    const firstTeacher = teachers.length > 0 ? `${teachers[0].firstName} ${teachers[0].lastName}` : "";
     const templateData = [
-      { "Student Name": "John Doe", "Father Name": "James Doe", "Class": "5th", "Section": "A", "Roll No": "101", "Username (optional)": "", "Password (optional)": "" },
-      { "Student Name": "Jane Smith", "Father Name": "Robert Smith", "Class": "5th", "Section": "B", "Roll No": "102", "Username (optional)": "", "Password (optional)": "" },
+      { "Student Name": "John Doe", "Father Name": "James Doe", "Class": "5th", "Section": "A", "Roll No": "101", "Teacher Name": firstTeacher, "Username (optional)": "", "Password (optional)": "" },
+      { "Student Name": "Jane Smith", "Father Name": "Robert Smith", "Class": "5th", "Section": "B", "Roll No": "102", "Teacher Name": firstTeacher, "Username (optional)": "", "Password (optional)": "" },
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
-    ws["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
+    ws["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 25 }, { wch: 20 }, { wch: 20 }];
+    // Add a note about available teachers
+    if (!ws["!comments"]) ws["!comments"] = [];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
+    // Add a reference sheet with available teachers
+    const teacherRef = teachers.map((t) => ({
+      "Teacher Name": `${t.firstName} ${t.lastName}`,
+      "Classes": t.classes.join(", "),
+    }));
+    if (teacherRef.length > 0) {
+      const ws2 = XLSX.utils.json_to_sheet(teacherRef);
+      ws2["!cols"] = [{ wch: 25 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, ws2, "Available Teachers");
+    }
     XLSX.writeFile(wb, "CodeChamps_Student_Template.xlsx");
-    toast.success("Template downloaded! Fill it and upload back.");
+    toast.success("Template downloaded! Check 'Available Teachers' sheet for teacher names.");
   };
 
   // Handle file upload
@@ -144,9 +168,11 @@ const SchoolStudents = () => {
     bulkPreview.forEach((row, idx) => {
       const name = String(row["Student Name"] || "").trim();
       const fatherName = String(row["Father Name"] || "").trim();
-      const cls = String(row["Class"] || "").trim();
+      const rawCls = String(row["Class"] || "").trim();
+      const cls = normalizeClass(rawCls);
       const section = String(row["Section"] || "").trim().toUpperCase();
       const rollNo = String(row["Roll No"] || "").trim();
+      const teacherName = String(row["Teacher Name"] || "").trim();
       const username = String(row["Username (optional)"] || "").trim();
       const password = String(row["Password (optional)"] || "").trim();
 
@@ -155,7 +181,7 @@ const SchoolStudents = () => {
         return;
       }
       if (!CLASS_OPTIONS.includes(cls)) {
-        errors.push(`Row ${idx + 2}: Invalid class "${cls}"`);
+        errors.push(`Row ${idx + 2}: Invalid class "${rawCls}"`);
         return;
       }
       if (!SECTION_OPTIONS.includes(section)) {
@@ -163,11 +189,27 @@ const SchoolStudents = () => {
         return;
       }
 
-      // Find a teacher for this class
-      const matchingTeacher = teachers.find((t) => t.classes.some((c) => c.startsWith(cls)));
-      if (!matchingTeacher) {
-        errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}`);
-        return;
+      // Match teacher by name if provided, otherwise auto-assign
+      let matchingTeacher;
+      if (teacherName) {
+        matchingTeacher = teachers.find((t) => 
+          `${t.firstName} ${t.lastName}`.toLowerCase() === teacherName.toLowerCase()
+        );
+        if (!matchingTeacher) {
+          errors.push(`Row ${idx + 2}: Teacher "${teacherName}" not found. Available: ${teachers.map(t => `${t.firstName} ${t.lastName}`).join(", ")}`);
+          return;
+        }
+        // Verify teacher handles this class
+        if (!matchingTeacher.classes.some((c) => c.startsWith(cls))) {
+          errors.push(`Row ${idx + 2}: Teacher "${teacherName}" is not assigned to class ${cls}`);
+          return;
+        }
+      } else {
+        matchingTeacher = teachers.find((t) => t.classes.some((c) => c.startsWith(cls)));
+        if (!matchingTeacher) {
+          errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}`);
+          return;
+        }
       }
 
       validStudents.push({
@@ -250,6 +292,7 @@ const SchoolStudents = () => {
                   <th className="text-left py-2 px-3">Class</th>
                   <th className="text-left py-2 px-3">Section</th>
                   <th className="text-left py-2 px-3">Roll No</th>
+                  <th className="text-left py-2 px-3">Teacher</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,9 +301,10 @@ const SchoolStudents = () => {
                     <td className="py-2 px-3 text-white/40">{i + 1}</td>
                     <td className="py-2 px-3">{row["Student Name"]}</td>
                     <td className="py-2 px-3">{row["Father Name"]}</td>
-                    <td className="py-2 px-3">{row["Class"]}</td>
+                    <td className="py-2 px-3">{normalizeClass(String(row["Class"] || ""))}</td>
                     <td className="py-2 px-3">{row["Section"]}</td>
                     <td className="py-2 px-3">{row["Roll No"]}</td>
+                    <td className="py-2 px-3">{row["Teacher Name"] || <span className="text-white/30 italic">Auto</span>}</td>
                   </tr>
                 ))}
               </tbody>
