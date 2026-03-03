@@ -10,6 +10,7 @@ export interface SchoolData {
   username: string;
   password: string;
   logo?: string;
+  sections?: string[];
   createdAt: string;
 }
 
@@ -47,7 +48,9 @@ interface DataContextType {
   addSchool: (school: Omit<SchoolData, "id" | "createdAt">) => SchoolData;
   addTeacher: (teacher: Omit<TeacherData, "id" | "createdAt" | "username" | "password">, customUsername?: string, customPassword?: string) => TeacherData;
   addStudent: (student: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">, customUsername?: string, customPassword?: string) => StudentData;
-  addStudentsBulk: (students: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">[]) => StudentData[];
+  addStudentsBulk: (students: (Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress"> & { customUsername?: string; customPassword?: string })[]) => StudentData[];
+  updateSchool: (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => void;
+  getSchool: (schoolId: string) => SchoolData | undefined;
   updateTeacher: (teacherId: string, data: Partial<Pick<TeacherData, "firstName" | "lastName" | "classes">>) => void;
   updateStudent: (studentId: string, data: Partial<Pick<StudentData, "name" | "fatherName" | "class" | "section" | "rollNo" | "teacherId">>) => void;
   deleteSchool: (schoolId: string) => string[];
@@ -123,16 +126,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return student;
   }, [students]);
 
-  const addStudentsBulk = useCallback((bulk: Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress">[]) => {
-    const created = bulk.map((data, i) => ({
-      ...data,
-      id: crypto.randomUUID(),
-      username: generateUsername("std", data.name, students.length + i + 1),
-      password: generatePassword(),
-      xp: 0,
-      progress: 0,
-      createdAt: new Date().toISOString(),
-    }));
+  const addStudentsBulk = useCallback((bulk: (Omit<StudentData, "id" | "createdAt" | "username" | "password" | "xp" | "progress"> & { customUsername?: string; customPassword?: string })[]) => {
+    const created: StudentData[] = bulk.map((data, i) => {
+      const { customUsername, customPassword, ...rest } = data;
+      return {
+        ...rest,
+        id: crypto.randomUUID(),
+        username: customUsername || generateUsername("std", rest.name, students.length + i + 1),
+        password: customPassword || generatePassword(),
+        xp: 0,
+        progress: 0,
+        createdAt: new Date().toISOString(),
+      };
+    });
     const updated = [...students, ...created];
     persistStudents(updated);
     return created;
@@ -178,12 +184,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return student.username;
   }, [students]);
 
+  const updateSchool = useCallback((schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => {
+    const updated = schools.map((s) => s.id === schoolId ? { ...s, ...data } : s);
+    persistSchools(updated);
+  }, [schools]);
+
+  const getSchool = useCallback((schoolId: string) => schools.find((s) => s.id === schoolId), [schools]);
+
   const getSchoolTeachers = useCallback((schoolId: string) => teachers.filter((t) => t.schoolId === schoolId), [teachers]);
   const getSchoolStudents = useCallback((schoolId: string) => students.filter((s) => s.schoolId === schoolId), [students]);
   const getTeacherStudents = useCallback((teacherId: string) => students.filter((s) => s.teacherId === teacherId), [students]);
 
   return (
-    <DataContext.Provider value={{ schools, teachers, students, addSchool, addTeacher, addStudent, addStudentsBulk, updateTeacher, updateStudent, deleteSchool, deleteTeacher, deleteStudent, getSchoolTeachers, getSchoolStudents, getTeacherStudents }}>
+    <DataContext.Provider value={{ schools, teachers, students, addSchool, addTeacher, addStudent, addStudentsBulk, updateTeacher, updateStudent, updateSchool, deleteSchool, deleteTeacher, deleteStudent, getSchool, getSchoolTeachers, getSchoolStudents, getTeacherStudents }}>
       {children}
     </DataContext.Provider>
   );

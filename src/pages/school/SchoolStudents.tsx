@@ -10,11 +10,11 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 const CLASS_OPTIONS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
-const SECTION_OPTIONS = ["A", "B", "C", "D", "E"];
+const DEFAULT_SECTIONS = ["A", "B", "C", "D", "E"];
 
 const SchoolStudents = () => {
   const { user } = useAuth();
-  const { addStudent, addStudentsBulk, getSchoolStudents, getSchoolTeachers, deleteStudent, updateStudent } = useData();
+  const { addStudent, addStudentsBulk, getSchoolStudents, getSchoolTeachers, getSchool, deleteStudent, updateStudent } = useData();
   const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -27,6 +27,8 @@ const SchoolStudents = () => {
   const schoolId = user?.id || "";
   const students = getSchoolStudents(schoolId);
   const teachers = getSchoolTeachers(schoolId);
+  const school = getSchool(schoolId);
+  const SECTION_OPTIONS = school?.sections?.length ? school.sections : DEFAULT_SECTIONS;
 
   const filteredTeachers = useMemo(() => {
     if (!form.class) return [];
@@ -125,7 +127,26 @@ const SchoolStudents = () => {
     toast.success("Template downloaded! Check 'Available Teachers' sheet for teacher names.");
   };
 
-  // Handle file upload
+  // Handle file upload - case-insensitive column matching
+  const normalizeColumns = (row: any): any => {
+    const normalized: any = {};
+    const columnMap: Record<string, string> = {
+      "student name": "Student Name",
+      "father name": "Father Name",
+      "class": "Class",
+      "section": "Section",
+      "roll no": "Roll No",
+      "teacher name": "Teacher Name",
+      "username (optional)": "Username (optional)",
+      "password (optional)": "Password (optional)",
+    };
+    Object.keys(row).forEach((key) => {
+      const mapped = columnMap[key.toLowerCase().trim()];
+      normalized[mapped || key] = row[key];
+    });
+    return normalized;
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -135,12 +156,13 @@ const SchoolStudents = () => {
         const data = new Uint8Array(evt.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet);
-        if (rows.length === 0) {
+        const rawRows: any[] = XLSX.utils.sheet_to_json(sheet);
+        if (rawRows.length === 0) {
           toast.error("No data found in the uploaded file.");
           return;
         }
-        // Validate required columns
+        // Normalize column names (case-insensitive)
+        const rows = rawRows.map(normalizeColumns);
         const required = ["Student Name", "Father Name", "Class", "Section", "Roll No"];
         const missing = required.filter((col) => !(col in rows[0]));
         if (missing.length > 0) {
@@ -158,19 +180,23 @@ const SchoolStudents = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Process bulk upload
+  // Process bulk upload - use addStudentsBulk for atomicity
   const processBulkUpload = () => {
     if (bulkPreview.length === 0) return;
 
     const errors: string[] = [];
     const validStudents: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[] = [];
 
+    // Build case-insensitive section lookup
+    const sectionLookup = new Map(SECTION_OPTIONS.map(s => [s.toLowerCase(), s]));
+
     bulkPreview.forEach((row, idx) => {
       const name = String(row["Student Name"] || "").trim();
       const fatherName = String(row["Father Name"] || "").trim();
       const rawCls = String(row["Class"] || "").trim();
       const cls = normalizeClass(rawCls);
-      const section = String(row["Section"] || "").trim().toUpperCase();
+      const rawSection = String(row["Section"] || "").trim();
+      const section = sectionLookup.get(rawSection.toLowerCase()) || rawSection.toUpperCase();
       const rollNo = String(row["Roll No"] || "").trim();
       const teacherName = String(row["Teacher Name"] || "").trim();
       const username = String(row["Username (optional)"] || "").trim();
@@ -184,22 +210,20 @@ const SchoolStudents = () => {
         errors.push(`Row ${idx + 2}: Invalid class "${rawCls}"`);
         return;
       }
-      if (!SECTION_OPTIONS.includes(section)) {
-        errors.push(`Row ${idx + 2}: Invalid section "${section}"`);
+      if (!sectionLookup.has(rawSection.toLowerCase()) && !SECTION_OPTIONS.includes(section)) {
+        errors.push(`Row ${idx + 2}: Invalid section "${rawSection}". Available: ${SECTION_OPTIONS.join(", ")}`);
         return;
       }
 
-      // Match teacher by name if provided, otherwise auto-assign
       let matchingTeacher;
       if (teacherName) {
-        matchingTeacher = teachers.find((t) => 
+        matchingTeacher = teachers.find((t) =>
           `${t.firstName} ${t.lastName}`.toLowerCase() === teacherName.toLowerCase()
         );
         if (!matchingTeacher) {
           errors.push(`Row ${idx + 2}: Teacher "${teacherName}" not found. Available: ${teachers.map(t => `${t.firstName} ${t.lastName}`).join(", ")}`);
           return;
         }
-        // Verify teacher handles this class
         if (!matchingTeacher.classes.some((c) => c.startsWith(cls))) {
           errors.push(`Row ${idx + 2}: Teacher "${teacherName}" is not assigned to class ${cls}`);
           return;
@@ -225,20 +249,23 @@ const SchoolStudents = () => {
     }
 
     if (validStudents.length > 0) {
-      // Add students one by one to get credentials
-      validStudents.forEach((s) => {
-        const student = addStudent(
-          { name: s.name, fatherName: s.fatherName, class: s.class, section: s.section, rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId },
-          s.customUsername, s.customPassword
-        );
+      // Use addStudentsBulk to create all at once (fixes stale state bug)
+      const created = addStudentsBulk(validStudents.map(s => ({
+        name: s.name, fatherName: s.fatherName, class: s.class, section: s.section,
+        rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId,
+        customUsername: s.customUsername, customPassword: s.customPassword,
+      })));
+
+      // Register demo users for all created students
+      created.forEach((student, i) => {
         addDemoUser(student.username, student.password, {
           id: student.id, username: student.username, role: "student",
-          displayName: s.name, schoolName: user?.schoolName || user?.displayName,
-          className: `${s.class} (${s.section})`,
+          displayName: validStudents[i].name, schoolName: user?.schoolName || user?.displayName,
+          className: `${validStudents[i].class} (${validStudents[i].section})`,
         });
       });
 
-      toast.success(`${validStudents.length} student(s) created successfully!`);
+      toast.success(`${created.length} student(s) created successfully!`);
       setBulkPreview([]);
       setShowBulkUpload(false);
     }

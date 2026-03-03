@@ -18,6 +18,7 @@ const AdminSchools = () => {
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [customCity, setCustomCity] = useState("");
 
   const filteredSchools = useMemo(() => {
     return schools.filter((s) => {
@@ -43,17 +44,20 @@ const AdminSchools = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.address || !form.state || !form.city || !form.phone || !form.username || !form.password) {
+    const finalCity = form.city === "__other" ? customCity.trim() : form.city;
+    if (!form.name || !form.address || !form.state || !finalCity || !form.phone || !form.username || !form.password) {
       toast.error("All fields are required");
       return;
     }
-    const school = addSchool(form);
+    const submitData = { ...form, city: finalCity };
+    const school = addSchool(submitData);
     addDemoUser(form.username, form.password, {
       id: school.id, username: form.username, role: "school",
       displayName: form.name, schoolName: form.name,
     });
     toast.success(`School "${form.name}" created! Login: ${form.username}`);
     setForm({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
+    setCustomCity("");
     setShowForm(false);
   };
 
@@ -139,7 +143,7 @@ const AdminSchools = () => {
                 <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Enter city" className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
               )}
               {form.city === "__other" && (
-                <Input value="" onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Type city name" className="bg-white/10 border-white/20 text-white placeholder:text-white/40 mt-2" />
+                <Input value={customCity} onChange={(e) => setCustomCity(e.target.value)} placeholder="Type city name" className="bg-white/10 border-white/20 text-white placeholder:text-white/40 mt-2" />
               )}
             </div>
             <div className="space-y-2">
