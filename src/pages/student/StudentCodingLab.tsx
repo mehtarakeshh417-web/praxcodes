@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Code, Play, RotateCcw, Palette, Terminal, Gamepad2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 
 // HTML/CSS/JS Editor
 const HtmlEditor = () => {
@@ -51,27 +52,22 @@ const PythonEditor = () => {
   const run = () => {
     try {
       const lines: string[] = [];
-      const printRegex = /print\s*\(\s*(?:f"([^"]*)"|\s*"([^"]*)"|\s*'([^']*)'|(.+?))\s*\)/g;
-      let match;
       const variables: Record<string, string> = {};
 
-      // Simple variable extraction
       code.split("\n").forEach((line) => {
         const varMatch = line.match(/^(\w+)\s*=\s*["'](.+?)["']/);
         if (varMatch) variables[varMatch[1]] = varMatch[2];
       });
 
-      // Simple for loop detection
       const forMatch = code.match(/for\s+(\w+)\s+in\s+range\((\d+),?\s*(\d+)?\):\s*\n\s+print/);
-      
+
       code.split("\n").forEach((line) => {
         const trimmed = line.trim();
         if (trimmed.startsWith("#") || trimmed === "" || trimmed.startsWith("for ") || trimmed.startsWith("name ") || trimmed.startsWith("import ")) return;
-        
+
         const pMatch = trimmed.match(/print\s*\(\s*(?:f"([^"]*)"|\s*"([^"]*)"|\s*'([^']*)')\s*\)/);
         if (pMatch) {
           let text = pMatch[1] || pMatch[2] || pMatch[3] || "";
-          // Replace f-string variables
           text = text.replace(/\{(\w+)\}/g, (_, v) => variables[v] || v);
           lines.push(text);
         }
@@ -124,11 +120,11 @@ const PythonEditor = () => {
   );
 };
 
-// Scratch Editor - embedded from MIT
+// Scratch Editor - using TurboWarp (open-source, embeddable Scratch editor)
 const ScratchEditor = () => (
   <div className="h-[600px] rounded-xl overflow-hidden border border-white/10">
     <iframe
-      src="https://scratch.mit.edu/projects/editor/?tutorial=getStarted"
+      src="https://turbowarp.org/editor?fps=30&clones=Infinity&offscreen&size=480x360"
       className="w-full h-full border-0"
       title="Scratch Editor"
       allow="clipboard-read; clipboard-write"
@@ -137,44 +133,46 @@ const ScratchEditor = () => (
   </div>
 );
 
-// Scratch Jr - info + link (no embeddable editor available)
+// Scratch Jr - embedded from codejr.org
 const ScratchJrEditor = () => (
-  <div className="space-y-6">
-    <div className="glass-card p-8 text-center">
-      <Gamepad2 className="w-16 h-16 text-neon-green mx-auto mb-4" />
-      <h3 className="font-display text-xl font-bold text-white mb-3">Scratch Jr</h3>
-      <p className="text-white/60 font-body mb-6 max-w-md mx-auto">
-        Scratch Jr is available as a free app on tablets and Chromebooks. Use it to create interactive stories and games by snapping programming blocks together!
-      </p>
-      <div className="flex justify-center gap-4 flex-wrap">
-        <a href="https://www.scratchjr.org/" target="_blank" rel="noopener noreferrer">
-          <Button variant="hero" size="lg">🌐 Visit ScratchJr.org</Button>
-        </a>
-        <a href="https://www.scratchjr.org/teach/activities" target="_blank" rel="noopener noreferrer">
-          <Button variant="glass" size="lg">📚 Activities & Guides</Button>
-        </a>
-      </div>
+  <div className="space-y-4">
+    <div className="h-[600px] rounded-xl overflow-hidden border border-white/10">
+      <iframe
+        src="https://codejr.org/scratchjr/index.html"
+        className="w-full h-full border-0"
+        title="Scratch Jr Editor"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+      />
     </div>
-
-    {/* Blockly-like visual editor placeholder */}
-    <div className="glass-card p-6">
-      <h3 className="font-display text-lg font-bold text-white mb-4">🧩 Block-Based Practice (Drag & Drop)</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {["Move Forward", "Turn Right", "Turn Left", "Repeat 3x", "Say Hello", "Change Color", "Play Sound", "Wait 1 sec"].map((block, i) => {
-          const colors = ["bg-[hsl(200,100%,50%)]", "bg-[hsl(260,80%,60%)]", "bg-[hsl(25,100%,55%)]", "bg-[hsl(145,80%,50%)]", "bg-[hsl(330,90%,60%)]", "bg-[hsl(45,100%,55%)]", "bg-[hsl(170,80%,45%)]", "bg-[hsl(0,84%,60%)]"];
-          return (
-            <div key={block} className={`${colors[i % colors.length]} rounded-xl p-3 text-center text-sm font-bold text-white cursor-grab active:cursor-grabbing hover:scale-105 transition-transform shadow-lg`}>
-              {block}
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-white/40 text-xs font-body mt-4 text-center">Visual block reference for Scratch Jr concepts. Use the actual Scratch Jr app for full functionality.</p>
-    </div>
+    <p className="text-white/40 text-xs font-body text-center">Powered by CodeJr.org — a free Scratch Jr web editor</p>
   </div>
 );
 
+// Determine which editors to show based on class number
+const getAvailableEditors = (className?: string): string[] => {
+  if (!className) return ["scratchjr"];
+  const numMatch = className.match(/(\d+)/);
+  const classNum = numMatch ? parseInt(numMatch[1]) : 1;
+
+  if (classNum <= 2) return ["scratchjr"];
+  if (classNum <= 5) return ["scratch", "scratchjr"];
+  if (classNum === 6) return ["html", "scratch"];
+  if (classNum === 7) return ["html", "python", "scratch"];
+  return ["html", "python", "scratch"]; // Class 8+
+};
+
+const editorMeta: Record<string, { label: string; icon: React.ElementType; component: React.FC }> = {
+  html: { label: "HTML/CSS", icon: Code, component: HtmlEditor },
+  python: { label: "Python", icon: Terminal, component: PythonEditor },
+  scratch: { label: "Scratch", icon: Gamepad2, component: ScratchEditor },
+  scratchjr: { label: "Scratch Jr", icon: Palette, component: ScratchJrEditor },
+};
+
 const StudentCodingLab = () => {
+  const { user } = useAuth();
+  const editors = useMemo(() => getAvailableEditors(user?.className), [user?.className]);
+
   return (
     <div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -182,26 +180,30 @@ const StudentCodingLab = () => {
         <p className="text-white/60 font-body mb-6">Practice coding with real editors</p>
       </motion.div>
 
-      <Tabs defaultValue="html" className="w-full">
+      <Tabs defaultValue={editors[0]} className="w-full">
         <TabsList className="bg-white/5 border border-white/10 mb-6 flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="html" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-white/60 font-body gap-1"><Code className="w-3.5 h-3.5" /> HTML/CSS</TabsTrigger>
-          <TabsTrigger value="python" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-white/60 font-body gap-1"><Terminal className="w-3.5 h-3.5" /> Python</TabsTrigger>
-          <TabsTrigger value="scratch" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-white/60 font-body gap-1"><Gamepad2 className="w-3.5 h-3.5" /> Scratch</TabsTrigger>
-          <TabsTrigger value="scratchjr" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-white/60 font-body gap-1"><Palette className="w-3.5 h-3.5" /> Scratch Jr</TabsTrigger>
+          {editors.map((key) => {
+            const meta = editorMeta[key];
+            const Icon = meta.icon;
+            return (
+              <TabsTrigger key={key} value={key} className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-white/60 font-body gap-1">
+                <Icon className="w-3.5 h-3.5" /> {meta.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
-        <TabsContent value="html"><HtmlEditor /></TabsContent>
-        <TabsContent value="python"><PythonEditor /></TabsContent>
-        <TabsContent value="scratch">
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-            <ScratchEditor />
-          </motion.div>
-        </TabsContent>
-        <TabsContent value="scratchjr">
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-            <ScratchJrEditor />
-          </motion.div>
-        </TabsContent>
+        {editors.map((key) => {
+          const meta = editorMeta[key];
+          const Comp = meta.component;
+          return (
+            <TabsContent key={key} value={key}>
+              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                <Comp />
+              </motion.div>
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );

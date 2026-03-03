@@ -560,13 +560,15 @@ export const CURRICULUM: ClassCurriculum[] = [
 ];
 
 // Get curriculum for a specific class
+// Handles formats: "5", "5th", "Class 5", "5 (A)", "5th (B)", "Class 5 (A)" etc.
 export const getCurriculumForClass = (classId: string): ClassCurriculum | undefined => {
-  // Normalize: "5" -> "5th", "5th" -> "5th"
-  const normalized = classId.replace(/(\d+)(st|nd|rd|th)?/i, (_, num) => {
-    const n = parseInt(num);
-    const suffix = n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th";
-    return `${n}${suffix}`;
-  });
+  if (!classId) return undefined;
+  // Extract the first number from the string
+  const numMatch = classId.match(/(\d+)/);
+  if (!numMatch) return undefined;
+  const n = parseInt(numMatch[1]);
+  const suffix = n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th";
+  const normalized = `${n}${suffix}`;
   return CURRICULUM.find((c) => c.classId.toLowerCase() === normalized.toLowerCase());
 };
 
