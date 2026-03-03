@@ -7,14 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
-const SECRET_PIN = "315691";
-
 const ChangePassword = () => {
-  const { user, changePassword } = useAuth();
-  const [method, setMethod] = useState<"old" | "pin" | null>(null);
+  const { user, changePassword, verifyPin, verifySecurityAnswer, getSecurityQuestion, hasSecuritySetup } = useAuth();
+  const [method, setMethod] = useState<"old" | "pin" | "security" | null>(null);
   const [oldPassword, setOldPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [securityAnswer, setSecurityAnswer] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const securityQuestion = getSecurityQuestion();
+  const setupDone = hasSecuritySetup();
 
   const handleChange = () => {
     if (!newPassword || newPassword.length < 4) { toast.error("New password must be at least 4 characters"); return; }
@@ -22,13 +24,18 @@ const ChangePassword = () => {
       if (changePassword(newPassword, oldPassword)) { toast.success("Password changed!"); reset(); }
       else toast.error("Old password is incorrect");
     } else if (method === "pin") {
-      if (pin === SECRET_PIN) {
+      if (verifyPin(pin)) {
         if (changePassword(newPassword)) { toast.success("Password changed via PIN!"); reset(); }
       } else toast.error("Incorrect PIN");
+    } else if (method === "security") {
+      const result = verifySecurityAnswer(securityAnswer);
+      if (result.valid) {
+        if (changePassword(newPassword)) { toast.success("Password changed via security question!"); reset(); }
+      } else toast.error("Incorrect security answer");
     }
   };
 
-  const reset = () => { setMethod(null); setOldPassword(""); setPin(""); setNewPassword(""); };
+  const reset = () => { setMethod(null); setOldPassword(""); setPin(""); setSecurityAnswer(""); setNewPassword(""); };
 
   const roleLabel = user?.role === "admin" ? "Admin" : user?.role === "school" ? "School" : user?.role === "teacher" ? "Teacher" : "Student";
 
@@ -41,9 +48,19 @@ const ChangePassword = () => {
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-6 max-w-lg">
         <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2 text-white"><Lock className="w-5 h-5 text-neon-blue" /> Change Password</h2>
         {!method ? (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button variant="outline" onClick={() => setMethod("old")}>Using Old Password</Button>
-            <Button variant="outline" onClick={() => setMethod("pin")}>Using Secret PIN</Button>
+            {setupDone && (
+              <>
+                <Button variant="outline" onClick={() => setMethod("pin")}>Using Secret PIN</Button>
+                <Button variant="outline" onClick={() => setMethod("security")}>Using Security Question</Button>
+              </>
+            )}
+            {!setupDone && (
+              <p className="text-white/40 text-sm font-body mt-2 w-full">
+                Complete your security setup from the dashboard to enable PIN and security question recovery.
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -55,8 +72,14 @@ const ChangePassword = () => {
             )}
             {method === "pin" && (
               <div className="space-y-2">
-                <Label className="text-white/80 font-body font-medium">Secret PIN</Label>
-                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
+                <Label className="text-white/80 font-body font-medium">Your Secret PIN</Label>
+                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" placeholder="Enter your PIN" />
+              </div>
+            )}
+            {method === "security" && (
+              <div className="space-y-2">
+                <Label className="text-white/80 font-body font-medium">{securityQuestion}</Label>
+                <Input value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-white/40" placeholder="Your answer" />
               </div>
             )}
             <div className="space-y-2">

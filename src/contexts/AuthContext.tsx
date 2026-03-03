@@ -11,6 +11,12 @@ export interface AuthUser {
   className?: string;
 }
 
+export interface UserSecurity {
+  pin: string;
+  securityQuestion: string;
+  securityAnswer: string;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   login: (username: string, password: string) => Promise<boolean>;
@@ -21,6 +27,11 @@ interface AuthContextType {
   removeDemoUsers: (usernames: string[]) => void;
   changeAdminPassword: (newPassword: string, oldPassword?: string) => boolean;
   changePassword: (newPassword: string, oldPassword?: string) => boolean;
+  hasSecuritySetup: () => boolean;
+  setupSecurity: (pin: string, question: string, answer: string) => void;
+  verifyPin: (pin: string) => boolean;
+  verifySecurityAnswer: (answer: string) => { valid: boolean; question: string };
+  getSecurityQuestion: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -110,8 +121,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   }, [user]);
 
+  const getSecurityStore = (): Record<string, UserSecurity> => {
+    try {
+      const stored = sessionStorage.getItem("codechamps_security");
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  };
+
+  const saveSecurityStore = (data: Record<string, UserSecurity>) => {
+    sessionStorage.setItem("codechamps_security", JSON.stringify(data));
+  };
+
+  const hasSecuritySetup = useCallback((): boolean => {
+    if (!user) return false;
+    const store = getSecurityStore();
+    return !!store[user.username];
+  }, [user]);
+
+  const setupSecurity = useCallback((pin: string, question: string, answer: string) => {
+    if (!user) return;
+    const store = getSecurityStore();
+    store[user.username] = { pin, securityQuestion: question, securityAnswer: answer };
+    saveSecurityStore(store);
+  }, [user]);
+
+  const verifyPin = useCallback((pin: string): boolean => {
+    if (!user) return false;
+    const store = getSecurityStore();
+    const entry = store[user.username];
+    return entry?.pin === pin;
+  }, [user]);
+
+  const getSecurityQuestion = useCallback((): string | null => {
+    if (!user) return null;
+    const store = getSecurityStore();
+    return store[user.username]?.securityQuestion || null;
+  }, [user]);
+
+  const verifySecurityAnswer = useCallback((answer: string): { valid: boolean; question: string } => {
+    if (!user) return { valid: false, question: "" };
+    const store = getSecurityStore();
+    const entry = store[user.username];
+    if (!entry) return { valid: false, question: "" };
+    return { valid: entry.securityAnswer === answer.trim().toLowerCase(), question: entry.securityQuestion };
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, removeDemoUser, removeDemoUsers, changeAdminPassword, changePassword }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, addDemoUser, removeDemoUser, removeDemoUsers, changeAdminPassword, changePassword, hasSecuritySetup, setupSecurity, verifyPin, verifySecurityAnswer, getSecurityQuestion }}>
       {children}
     </AuthContext.Provider>
   );
