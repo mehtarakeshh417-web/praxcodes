@@ -82,10 +82,96 @@ const saveState = (key: string, value: unknown) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
+// Reconcile orphaned auth users into DataContext on first load
+const reconcileAuthUsers = () => {
+  try {
+    const authStore: Record<string, { password: string; user: { id: string; username: string; role: string; displayName: string; schoolName?: string; className?: string } }> = JSON.parse(localStorage.getItem("codechamps_users") || "{}");
+    const existingSchools: SchoolData[] = loadState("cc_schools", []);
+    let existingTeachers: TeacherData[] = loadState("cc_teachers", []);
+    let existingStudents: StudentData[] = loadState("cc_students", []);
+    let changed = false;
+
+    Object.entries(authStore).forEach(([username, entry]) => {
+      const { user } = entry;
+
+      if (user.role === "school") {
+        // Reconcile schools
+        if (!existingSchools.find((s) => s.id === user.id)) {
+          existingSchools.push({
+            id: user.id,
+            name: user.schoolName || user.displayName || username,
+            address: "",
+            state: "",
+            city: "",
+            phone: "",
+            username,
+            password: entry.password,
+            createdAt: new Date().toISOString(),
+          });
+          changed = true;
+        }
+      }
+
+      if (user.role === "teacher") {
+        if (!existingTeachers.find((t) => t.id === user.id)) {
+          // Find school by schoolName
+          const school = existingSchools.find((s) => s.name === user.schoolName);
+          const nameParts = (user.displayName || "").split(" ");
+          existingTeachers.push({
+            id: user.id,
+            schoolId: school?.id || "",
+            firstName: nameParts[0] || username,
+            lastName: nameParts.slice(1).join(" ") || "",
+            classes: user.className ? [user.className] : [],
+            username,
+            password: entry.password,
+            createdAt: new Date().toISOString(),
+          });
+          changed = true;
+        }
+      }
+
+      if (user.role === "student") {
+        if (!existingStudents.find((s) => s.id === user.id)) {
+          const school = existingSchools.find((s) => s.name === user.schoolName);
+          const classParts = (user.className || "").split("-");
+          existingStudents.push({
+            id: user.id,
+            schoolId: school?.id || "",
+            teacherId: "",
+            name: user.displayName || username,
+            fatherName: "",
+            class: classParts[0]?.trim() || "",
+            section: classParts[1]?.trim() || "A",
+            rollNo: "",
+            username,
+            password: entry.password,
+            xp: 0,
+            progress: 0,
+            createdAt: new Date().toISOString(),
+          });
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      saveState("cc_schools", existingSchools);
+      saveState("cc_teachers", existingTeachers);
+      saveState("cc_students", existingStudents);
+    }
+
+    return { schools: existingSchools, teachers: existingTeachers, students: existingStudents };
+  } catch {
+    return { schools: loadState<SchoolData[]>("cc_schools", []), teachers: loadState<TeacherData[]>("cc_teachers", []), students: loadState<StudentData[]>("cc_students", []) };
+  }
+};
+
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [schools, setSchools] = useState<SchoolData[]>(() => loadState("cc_schools", []));
-  const [teachers, setTeachers] = useState<TeacherData[]>(() => loadState("cc_teachers", []));
-  const [students, setStudents] = useState<StudentData[]>(() => loadState("cc_students", []));
+  const [initialData] = useState(() => reconcileAuthUsers());
+  const [schools, setSchools] = useState<SchoolData[]>(initialData.schools);
+  const [teachers, setTeachers] = useState<TeacherData[]>(initialData.teachers);
+  const [students, setStudents] = useState<StudentData[]>(initialData.students);
 
   const persistSchools = (data: SchoolData[]) => { setSchools(data); saveState("cc_schools", data); };
   const persistTeachers = (data: TeacherData[]) => { setTeachers(data); saveState("cc_teachers", data); };

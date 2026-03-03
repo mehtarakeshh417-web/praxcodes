@@ -57,7 +57,7 @@ const TeacherAssignments = () => {
   // AI Generation state
   const [showAI, setShowAI] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
-  const [aiQType, setAiQType] = useState<"mcq" | "truefalse" | "mixed">("mixed");
+  const [aiQType, setAiQType] = useState<"mcq" | "truefalse" | "descriptive" | "mixed">("mixed");
   const [aiCount, setAiCount] = useState(5);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -83,56 +83,85 @@ const TeacherAssignments = () => {
     if (!aiTopic.trim()) { toast.error("Enter a topic for AI generation"); return; }
     setAiLoading(true);
 
-    const prompt = `You are an expert K-8 computer science teacher. Generate exactly ${aiCount} ${aiQType === "mixed" ? "mixed (MCQ + True/False)" : aiQType === "mcq" ? "Multiple Choice (MCQ)" : "True/False"} questions for ${form.targetClass || "a general"} class on the topic: "${aiTopic}".
+    const typeDesc = aiQType === "mixed" ? "mixed (MCQ + True/False + Descriptive)" : aiQType === "mcq" ? "Multiple Choice (MCQ)" : aiQType === "truefalse" ? "True/False" : "Descriptive (short answer)";
+
+    const prompt = `You are an expert K-8 computer science teacher. Generate exactly ${aiCount} ${typeDesc} questions for ${form.targetClass || "a general"} class on the topic: "${aiTopic}".
 
 Return ONLY a valid JSON array. Each item must have:
-- "type": "mcq" or "truefalse"
+- "type": "mcq", "truefalse", or "descriptive"
 - "question": the question text
-- "options": array of 4 strings (for MCQ only, omit for truefalse)
-- "correctAnswer": the correct answer string
+- "options": array of 4 strings (for MCQ only, omit for truefalse and descriptive)
+- "correctAnswer": the correct answer string (for descriptive, provide a model answer in 1-2 sentences)
 
-Example: [{"type":"mcq","question":"What is HTML?","options":["A markup language","A programming language","A database","An OS"],"correctAnswer":"A markup language"}]
+Example: [{"type":"mcq","question":"What is HTML?","options":["A markup language","A programming language","A database","An OS"],"correctAnswer":"A markup language"},{"type":"descriptive","question":"Explain what a web browser does.","correctAnswer":"A web browser is software that retrieves and displays web pages from the internet."}]
 
 Make questions age-appropriate and educational. Return ONLY the JSON array, no other text.`;
 
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    const models = [
+      "gemini-2.0-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+    ];
+
+    let lastError = "";
+    for (const model of models) {
+      try {
+        // Small delay to avoid rate limits
+        await new Promise((r) => setTimeout(r, 500));
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+            }),
+          }
+        );
+
+        if (res.status === 429) {
+          lastError = "Rate limited, trying another model...";
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
         }
-      );
 
-      if (!res.ok) throw new Error(`API Error ${res.status}`);
+        if (!res.ok) {
+          lastError = `API Error ${res.status}`;
+          continue;
+        }
 
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("No content in response");
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) { lastError = "No content in response"; continue; }
 
-      // Extract JSON from response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error("Could not parse AI response");
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) { lastError = "Could not parse AI response"; continue; }
 
-      const parsed = JSON.parse(jsonMatch[0]) as Array<{ type: string; question: string; options?: string[]; correctAnswer: string }>;
-      const newQuestions: Question[] = parsed.map((q) => ({
-        id: crypto.randomUUID(),
-        type: (q.type === "truefalse" ? "truefalse" : "mcq") as Question["type"],
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-      }));
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{ type: string; question: string; options?: string[]; correctAnswer: string }>;
+        const newQuestions: Question[] = parsed.map((q) => ({
+          id: crypto.randomUUID(),
+          type: (q.type === "truefalse" ? "truefalse" : q.type === "descriptive" ? "descriptive" : "mcq") as Question["type"],
+          question: q.question,
+          options: q.type === "mcq" ? q.options : undefined,
+          correctAnswer: q.correctAnswer,
+        }));
 
-      setQuestions((prev) => [...prev, ...newQuestions]);
-      setShowAI(false);
-      setAiTopic("");
-      toast.success(`${newQuestions.length} questions generated by AI!`);
-    } catch (err: any) {
-      toast.error(err.message || "AI generation failed");
-    } finally {
-      setAiLoading(false);
+        setQuestions((prev) => [...prev, ...newQuestions]);
+        setShowAI(false);
+        setAiTopic("");
+        toast.success(`${newQuestions.length} questions generated by AI!`);
+        setAiLoading(false);
+        return; // Success — exit
+      } catch (err: any) {
+        lastError = err.message || "AI generation failed";
+        continue;
+      }
     }
+
+    toast.error(lastError || "AI generation failed after all retries");
+    setAiLoading(false);
   }, [aiTopic, aiQType, aiCount, form.targetClass]);
 
   const createAssignment = useCallback(() => {
@@ -236,9 +265,9 @@ Make questions age-appropriate and educational. Return ONLY the JSON array, no o
 
                         <div className="flex flex-wrap items-center gap-4">
                           <div className="flex gap-2">
-                            {(["mixed", "mcq", "truefalse"] as const).map((t) => (
+                          {(["mixed", "mcq", "truefalse", "descriptive"] as const).map((t) => (
                               <button key={t} onClick={() => setAiQType(t)} className={`px-3 py-1 rounded-lg text-xs font-body ${aiQType === t ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/30" : "bg-white/5 text-white/50 border border-white/10"}`}>
-                                {t === "mixed" ? "Mixed" : t === "mcq" ? "MCQ" : "True/False"}
+                                {t === "mixed" ? "Mixed" : t === "mcq" ? "MCQ" : t === "truefalse" ? "True/False" : "Descriptive"}
                               </button>
                             ))}
                           </div>
