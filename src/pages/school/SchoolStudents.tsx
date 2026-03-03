@@ -1,35 +1,36 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Plus, X, Upload, Trash2, AlertTriangle, Edit2 } from "lucide-react";
+import { GraduationCap, Plus, X, Upload, Trash2, AlertTriangle, Edit2, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 const CLASS_OPTIONS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E"];
 
 const SchoolStudents = () => {
   const { user } = useAuth();
-  const { addStudent, getSchoolStudents, getSchoolTeachers, deleteStudent, updateStudent } = useData();
+  const { addStudent, addStudentsBulk, getSchoolStudents, getSchoolTeachers, deleteStudent, updateStudent } = useData();
   const { addDemoUser, removeDemoUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "" });
   const [form, setForm] = useState({ name: "", fatherName: "", class: "", section: "", rollNo: "", teacherId: "", username: "", password: "" });
+  const [bulkPreview, setBulkPreview] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const schoolId = user?.id || "";
   const students = getSchoolStudents(schoolId);
   const teachers = getSchoolTeachers(schoolId);
 
-  // Filter teachers by selected class — show teachers assigned to any section of that class
   const filteredTeachers = useMemo(() => {
     if (!form.class) return [];
-    return teachers.filter((t) =>
-      t.classes.some((c) => c.startsWith(form.class))
-    );
+    return teachers.filter((t) => t.classes.some((c) => c.startsWith(form.class)));
   }, [form.class, teachers]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,6 +87,121 @@ const SchoolStudents = () => {
     setEditingId(null);
   };
 
+  // Download Excel template
+  const downloadTemplate = () => {
+    const templateData = [
+      { "Student Name": "John Doe", "Father Name": "James Doe", "Class": "5th", "Section": "A", "Roll No": "101", "Username (optional)": "", "Password (optional)": "" },
+      { "Student Name": "Jane Smith", "Father Name": "Robert Smith", "Class": "5th", "Section": "B", "Roll No": "102", "Username (optional)": "", "Password (optional)": "" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "CodeChamps_Student_Template.xlsx");
+    toast.success("Template downloaded! Fill it and upload back.");
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+        if (rows.length === 0) {
+          toast.error("No data found in the uploaded file.");
+          return;
+        }
+        // Validate required columns
+        const required = ["Student Name", "Father Name", "Class", "Section", "Roll No"];
+        const missing = required.filter((col) => !(col in rows[0]));
+        if (missing.length > 0) {
+          toast.error(`Missing columns: ${missing.join(", ")}. Please use the template.`);
+          return;
+        }
+        setBulkPreview(rows);
+        setShowBulkUpload(true);
+        toast.success(`${rows.length} student(s) found in the file. Review and confirm.`);
+      } catch {
+        toast.error("Failed to read file. Ensure it's a valid .xlsx file.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Process bulk upload
+  const processBulkUpload = () => {
+    if (bulkPreview.length === 0) return;
+
+    const errors: string[] = [];
+    const validStudents: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[] = [];
+
+    bulkPreview.forEach((row, idx) => {
+      const name = String(row["Student Name"] || "").trim();
+      const fatherName = String(row["Father Name"] || "").trim();
+      const cls = String(row["Class"] || "").trim();
+      const section = String(row["Section"] || "").trim().toUpperCase();
+      const rollNo = String(row["Roll No"] || "").trim();
+      const username = String(row["Username (optional)"] || "").trim();
+      const password = String(row["Password (optional)"] || "").trim();
+
+      if (!name || !fatherName || !cls || !section || !rollNo) {
+        errors.push(`Row ${idx + 2}: Missing required fields`);
+        return;
+      }
+      if (!CLASS_OPTIONS.includes(cls)) {
+        errors.push(`Row ${idx + 2}: Invalid class "${cls}"`);
+        return;
+      }
+      if (!SECTION_OPTIONS.includes(section)) {
+        errors.push(`Row ${idx + 2}: Invalid section "${section}"`);
+        return;
+      }
+
+      // Find a teacher for this class
+      const matchingTeacher = teachers.find((t) => t.classes.some((c) => c.startsWith(cls)));
+      if (!matchingTeacher) {
+        errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}`);
+        return;
+      }
+
+      validStudents.push({
+        name, fatherName, class: cls, section, rollNo,
+        teacherId: matchingTeacher.id, schoolId,
+        customUsername: username || undefined,
+        customPassword: password || undefined,
+      });
+    });
+
+    if (errors.length > 0) {
+      toast.error(`${errors.length} error(s): ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "..." : ""}`);
+    }
+
+    if (validStudents.length > 0) {
+      // Add students one by one to get credentials
+      validStudents.forEach((s) => {
+        const student = addStudent(
+          { name: s.name, fatherName: s.fatherName, class: s.class, section: s.section, rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId },
+          s.customUsername, s.customPassword
+        );
+        addDemoUser(student.username, student.password, {
+          id: student.id, username: student.username, role: "student",
+          displayName: s.name, schoolName: user?.schoolName || user?.displayName,
+          className: `${s.class} (${s.section})`,
+        });
+      });
+
+      toast.success(`${validStudents.length} student(s) created successfully!`);
+      setBulkPreview([]);
+      setShowBulkUpload(false);
+    }
+  };
+
   return (
     <div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between mb-8">
@@ -94,7 +210,13 @@ const SchoolStudents = () => {
           <p className="text-white/60 font-body">Manage student enrollment</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="glass" size="lg"><Upload className="w-5 h-5 mr-2" /> Bulk Upload</Button>
+          <Button variant="glass" size="lg" onClick={downloadTemplate}>
+            <Download className="w-5 h-5 mr-2" /> Download Template
+          </Button>
+          <Button variant="glass" size="lg" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-5 h-5 mr-2" /> Bulk Upload
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileUpload} />
           <Button variant="hero" size="lg" onClick={handleAddClick}><Plus className="w-5 h-5 mr-2" /> Add Student</Button>
         </div>
       </motion.div>
@@ -105,6 +227,51 @@ const SchoolStudents = () => {
           <p className="text-sm font-body text-white/80">
             <strong className="text-destructive">No teachers found.</strong> You must create at least one teacher before enrolling students.
           </p>
+        </motion.div>
+      )}
+
+      {/* Bulk Upload Preview */}
+      {showBulkUpload && bulkPreview.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-neon-green" />
+              Bulk Upload Preview ({bulkPreview.length} students)
+            </h2>
+            <Button variant="ghost" size="icon" onClick={() => { setShowBulkUpload(false); setBulkPreview([]); }}><X className="w-5 h-5" /></Button>
+          </div>
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-white/50 border-b border-white/10">
+                  <th className="text-left py-2 px-3">#</th>
+                  <th className="text-left py-2 px-3">Name</th>
+                  <th className="text-left py-2 px-3">Father Name</th>
+                  <th className="text-left py-2 px-3">Class</th>
+                  <th className="text-left py-2 px-3">Section</th>
+                  <th className="text-left py-2 px-3">Roll No</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bulkPreview.map((row, i) => (
+                  <tr key={i} className="border-b border-white/5 text-white/80">
+                    <td className="py-2 px-3 text-white/40">{i + 1}</td>
+                    <td className="py-2 px-3">{row["Student Name"]}</td>
+                    <td className="py-2 px-3">{row["Father Name"]}</td>
+                    <td className="py-2 px-3">{row["Class"]}</td>
+                    <td className="py-2 px-3">{row["Section"]}</td>
+                    <td className="py-2 px-3">{row["Roll No"]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => { setShowBulkUpload(false); setBulkPreview([]); }}>Cancel</Button>
+            <Button variant="hero" onClick={processBulkUpload}>
+              <Upload className="w-4 h-4 mr-2" /> Confirm & Create {bulkPreview.length} Students
+            </Button>
+          </div>
         </motion.div>
       )}
 
