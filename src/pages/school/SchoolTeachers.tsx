@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, Plus, X, Trash2, Edit2, Check } from "lucide-react";
 import { toast } from "sonner";
+import ExpandableTeacherCard from "@/components/ExpandableTeacherCard";
 
 const CLASS_LIST = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
 const SECTION_LIST = ["A", "B", "C", "D", "E"];
 
 const SchoolTeachers = () => {
   const { user } = useAuth();
-  const { addTeacher, getSchoolTeachers, deleteTeacher, updateTeacher } = useData();
+  const { addTeacher, getSchoolTeachers, getSchoolStudents, deleteTeacher, updateTeacher } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", classes: [] as string[] });
@@ -23,6 +24,7 @@ const SchoolTeachers = () => {
 
   const schoolId = user?.id || "";
   const teachers = getSchoolTeachers(schoolId);
+  const schoolStudents = getSchoolStudents(schoolId);
 
   const toggleClassSelection = (cls: string) => {
     setSelectedClasses((prev) => {
@@ -203,9 +205,9 @@ const SchoolTeachers = () => {
       ) : (
         <div className="space-y-3">
           {teachers.map((t, i) => (
-            <motion.div key={t.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="glass-card p-4">
+            <motion.div key={t.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
               {editingId === t.id ? (
-                <div className="space-y-3">
+                <div className="glass-card p-4 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Input value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} className="bg-white/10 border-white/20 text-white" />
                     <Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} className="bg-white/10 border-white/20 text-white" />
@@ -216,20 +218,21 @@ const SchoolTeachers = () => {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-body font-bold text-white">{t.firstName} {t.lastName}</span>
-                    <div className="text-xs text-white/40 mt-1">{formatClassDisplay(t.classes)}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-neon-blue shrink-0" onClick={() => startEdit(t)}>
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(t.id, `${t.firstName} ${t.lastName}`)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+                <ExpandableTeacherCard
+                  teacher={t}
+                  students={schoolStudents}
+                  formatClassDisplay={formatClassDisplay}
+                  actions={
+                    <>
+                      <Button variant="ghost" size="icon" className="text-white/30 hover:text-neon-blue shrink-0" onClick={() => startEdit(t)}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(t.id, `${t.firstName} ${t.lastName}`)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  }
+                />
               )}
             </motion.div>
           ))}

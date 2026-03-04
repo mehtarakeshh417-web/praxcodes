@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { School, Plus, X, Eye, EyeOff, Trash2, Filter, MapPin, ChevronDown, Users, GraduationCap } from "lucide-react";
+import ExpandableTeacherCard from "@/components/ExpandableTeacherCard";
 import { toast } from "sonner";
 import { INDIAN_STATES, MAJOR_CITIES } from "@/lib/indianStates";
 
@@ -19,7 +20,6 @@ const AdminSchools = () => {
   const [customCity, setCustomCity] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedSchools, setExpandedSchools] = useState<Set<string>>(new Set());
-  const [expandedTeachers, setExpandedTeachers] = useState<Set<string>>(new Set());
 
   const filteredSchools = useMemo(() => {
     return schools.filter((s) => {
@@ -49,16 +49,8 @@ const AdminSchools = () => {
     });
   };
 
-  const toggleTeacher = (id: string) => {
-    setExpandedTeachers(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
   const getSchoolTeachers = (schoolId: string) => teachers.filter(t => t.schoolId === schoolId);
-  const getTeacherStudents = (teacherId: string) => students.filter(s => s.teacherId === teacherId);
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,61 +246,15 @@ const AdminSchools = () => {
                           {schoolTeachers.length === 0 ? (
                             <p className="text-white/30 text-sm font-body pl-4">No teachers added yet</p>
                           ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               {schoolTeachers.map(teacher => {
-                                const teacherStudents = getTeacherStudents(teacher.id);
-                                const isTeacherExpanded = expandedTeachers.has(teacher.id);
-
+                                const schoolStudentsList = students.filter(s => s.schoolId === school.id);
                                 return (
-                                  <div key={teacher.id} className="rounded-lg bg-white/5 overflow-hidden">
-                                    {/* Teacher row - clickable */}
-                                    <button
-                                      onClick={() => toggleTeacher(teacher.id)}
-                                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <Users className="w-4 h-4 text-neon-blue/70" />
-                                        <span className="text-sm font-body text-white/80">{teacher.firstName} {teacher.lastName}</span>
-                                        {teacher.classes.length > 0 && (
-                                          <span className="text-xs text-white/40">({teacher.classes.join(", ")})</span>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs text-white/40 font-body">{teacherStudents.length} student{teacherStudents.length !== 1 ? "s" : ""}</span>
-                                        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-200 ${isTeacherExpanded ? "rotate-180" : ""}`} />
-                                      </div>
-                                    </button>
-
-                                    {/* Expanded: Students under this teacher */}
-                                    <AnimatePresence>
-                                      {isTeacherExpanded && (
-                                        <motion.div
-                                          initial={{ height: 0, opacity: 0 }}
-                                          animate={{ height: "auto", opacity: 1 }}
-                                          exit={{ height: 0, opacity: 0 }}
-                                          transition={{ duration: 0.15 }}
-                                          className="overflow-hidden"
-                                        >
-                                          <div className="px-4 pb-3 border-t border-white/5">
-                                            {teacherStudents.length === 0 ? (
-                                              <p className="text-white/25 text-xs font-body pt-2 pl-6">No students assigned</p>
-                                            ) : (
-                                              <div className="pt-2 space-y-1">
-                                                {teacherStudents.map(student => (
-                                                  <div key={student.id} className="flex items-center gap-2 pl-6 py-1">
-                                                    <GraduationCap className="w-3.5 h-3.5 text-neon-green/60" />
-                                                    <span className="text-xs font-body text-white/60">{student.name}</span>
-                                                    <span className="text-xs text-white/30">— Class {student.class}{student.section ? `-${student.section}` : ""}</span>
-                                                    {student.rollNo && <span className="text-xs text-white/20">Roll #{student.rollNo}</span>}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </div>
+                                  <ExpandableTeacherCard
+                                    key={teacher.id}
+                                    teacher={teacher}
+                                    students={schoolStudentsList}
+                                  />
                                 );
                               })}
                             </div>

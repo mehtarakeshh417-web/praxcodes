@@ -216,21 +216,36 @@ const SchoolStudents = () => {
 
       let matchingTeacher;
       if (teacherName) {
-        matchingTeacher = teachers.find((t) =>
+        // First try exact name match
+        const namedTeacher = teachers.find((t) =>
           `${t.firstName} ${t.lastName}`.toLowerCase() === teacherName.toLowerCase()
         );
-        if (!matchingTeacher) {
+        if (!namedTeacher) {
           errors.push(`Row ${idx + 2}: Teacher "${teacherName}" not found.`);
           return;
         }
-        if (!matchingTeacher.classes.some((c) => c.startsWith(cls))) {
-          errors.push(`Row ${idx + 2}: Teacher "${teacherName}" is not assigned to class ${cls}`);
-          return;
+        // Check if this teacher covers the class+section
+        const classSection = `${cls}-${section}`;
+        if (namedTeacher.classes.some((c) => c === classSection || c.startsWith(cls))) {
+          matchingTeacher = namedTeacher;
+        } else {
+          // Named teacher doesn't cover this class — try to find another teacher who does
+          matchingTeacher = teachers.find((t) =>
+            t.classes.some((c) => c === classSection || c === cls || c.startsWith(`${cls}-`))
+          );
+          if (!matchingTeacher) {
+            errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}-${section}. "${teacherName}" teaches ${namedTeacher.classes.join(", ")}`);
+            return;
+          }
         }
       } else {
-        matchingTeacher = teachers.find((t) => t.classes.some((c) => c.startsWith(cls)));
+        // Auto-match: find teacher covering this class
+        const classSection = `${cls}-${section}`;
+        matchingTeacher = teachers.find((t) =>
+          t.classes.some((c) => c === classSection || c === cls || c.startsWith(`${cls}-`))
+        );
         if (!matchingTeacher) {
-          errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}`);
+          errors.push(`Row ${idx + 2}: No teacher assigned to class ${cls}-${section}`);
           return;
         }
       }
