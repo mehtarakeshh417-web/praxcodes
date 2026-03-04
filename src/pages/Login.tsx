@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import ParticleBackground from "@/components/ParticleBackground";
 import { LogIn, AlertCircle, ShieldCheck } from "lucide-react";
 
 const Login = () => {
@@ -30,15 +29,27 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center px-4">
-      <ParticleBackground />
+    <div className="min-h-screen relative flex items-center justify-center px-4 overflow-hidden">
+      {/* Full-screen background image */}
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: "url('/assets/login-bg.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+      {/* Dark overlay so text is readable */}
+      <div className="absolute inset-0 z-[1] bg-black/60 backdrop-blur-[2px]" />
+
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="glass-card p-10 neon-glow-blue">
+        <div className="glass-card p-10 neon-glow-blue bg-black/40 backdrop-blur-xl border border-white/10">
           {/* Logo & Title */}
           <div className="text-center mb-10">
             <motion.div
