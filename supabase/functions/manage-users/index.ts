@@ -104,6 +104,8 @@ Deno.serve(async (req) => {
       const results: any[] = [];
       const errors: string[] = [];
 
+      console.log(`[BULK CREATE] Processing ${users?.length || 0} users`);
+
       for (const u of users) {
         // Schools can only create teachers and students
         if (isSchool && !isAdmin && !["teacher", "student"].includes(u.role)) {
@@ -119,6 +121,7 @@ Deno.serve(async (req) => {
         });
 
         if (createError) {
+          console.log(`[BULK CREATE] Failed: ${u.email} - ${createError.message}`);
           errors.push(`${u.email}: ${createError.message}`);
           continue;
         }
@@ -128,6 +131,7 @@ Deno.serve(async (req) => {
           .insert({ user_id: newUser.user.id, role: u.role });
 
         if (roleError) {
+          console.log(`[BULK CREATE] Role failed: ${u.email} - ${roleError.message}`);
           await supabase.auth.admin.deleteUser(newUser.user.id);
           errors.push(`${u.email}: role assignment failed`);
           continue;
@@ -135,6 +139,8 @@ Deno.serve(async (req) => {
 
         results.push(newUser.user);
       }
+
+      console.log(`[BULK CREATE] Done: ${results.length} created, ${errors.length} errors`);
 
       return new Response(JSON.stringify({ users: results, errors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -229,37 +235,94 @@ Deno.serve(async (req) => {
     }
 
     if (action === "cleanup_orphaned_student_users") {
-      // Find auth users with student role but no matching student record
-      const { data: studentRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "student");
+      // THOROUGH cleanup: List ALL auth users and find any student-like accounts
+      // that don't have a matching student DB record
+      let deleted = 0;
+      const deleteErrors: string[] = [];
       
-      if (!studentRoles || studentRoles.length === 0) {
-        return new Response(JSON.stringify({ deleted: 0 }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
+      // Get ALL existing students' user_ids
       const { data: existingStudents } = await supabase
         .from("students")
         .select("user_id");
-      
-      const existingUserIds = new Set((existingStudents || []).map((s: any) => s.user_id).filter(Boolean));
-      const orphanIds = studentRoles
-        .map((r: any) => r.user_id)
-        .filter((uid: string) => !existingUserIds.has(uid));
+      const existingStudentUserIds = new Set(
+        (existingStudents || []).map((s: any) => s.user_id).filter(Boolean)
+      );
 
-      let deleted = 0;
-      for (const uid of orphanIds) {
-        const { error } = await supabase.auth.admin.deleteUser(uid);
-        if (!error) {
-          await supabase.from("user_roles").delete().eq("user_id", uid);
-          deleted++;
+      // Get ALL existing teachers' user_ids  
+      const { data: existingTeachers } = await supabase
+        .from("teachers")
+        .select("user_id");
+      const existingTeacherUserIds = new Set(
+        (existingTeachers || []).map((t: any) => t.user_id).filter(Boolean)
+      );
+
+      // Get ALL existing schools' user_ids
+      const { data: existingSchools } = await supabase
+        .from("schools")
+        .select("user_id");
+      const existingSchoolUserIds = new Set(
+        (existingSchools || []).map((s: any) => s.user_id).filter(Boolean)
+      );
+
+      // List ALL auth users (paginated)
+      let page = 1;
+      const perPage = 100;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+        
+        if (listError || !listData?.users?.length) {
+          hasMore = false;
+          break;
         }
+
+        for (const authUser of listData.users) {
+          const email = authUser.email || "";
+          // Only process @codechamps.local emails (our managed accounts)
+          if (!email.endsWith("@codechamps.local")) continue;
+          
+          // Skip if user has a valid record in any entity table
+          if (existingStudentUserIds.has(authUser.id)) continue;
+          if (existingTeacherUserIds.has(authUser.id)) continue;
+          if (existingSchoolUserIds.has(authUser.id)) continue;
+          
+          // Check if this is the admin account - skip it
+          const { data: adminRole } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", authUser.id)
+            .eq("role", "admin");
+          if (adminRole && adminRole.length > 0) continue;
+
+          // This is an orphaned account - delete it
+          try {
+            const { error: delErr } = await supabase.auth.admin.deleteUser(authUser.id);
+            if (!delErr) {
+              await supabase.from("user_roles").delete().eq("user_id", authUser.id);
+              await supabase.from("user_security").delete().eq("user_id", authUser.id);
+              deleted++;
+            } else {
+              deleteErrors.push(`${email}: ${delErr.message}`);
+            }
+          } catch (e) {
+            deleteErrors.push(`${email}: ${e.message}`);
+          }
+        }
+
+        hasMore = listData.users.length === perPage;
+        page++;
       }
 
-      return new Response(JSON.stringify({ deleted, total_orphans: orphanIds.length }), {
+      return new Response(JSON.stringify({ deleted, errors: deleteErrors }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+      return new Response(JSON.stringify({ deleted, total_orphans: orphanIds.length, errors: deleteErrors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
