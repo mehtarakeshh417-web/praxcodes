@@ -264,13 +264,24 @@ const SchoolStudents = () => {
 
     if (validStudents.length > 0) {
       setIsSubmitting(true);
-      const created = await addStudentsBulk(validStudents.map(s => ({
-        name: s.name, fatherName: s.fatherName, class: s.class, section: s.section,
-        rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId,
-        customUsername: s.customUsername, customPassword: s.customPassword,
-      })));
+      try {
+        const created = await addStudentsBulk(validStudents.map(s => ({
+          name: s.name, fatherName: s.fatherName, class: s.class, section: s.section,
+          rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId,
+          customUsername: s.customUsername, customPassword: s.customPassword,
+        })));
 
-      toast.success(`${created.length} student(s) created successfully!`);
+        if (created.length === 0) {
+          toast.error("Failed to create students. Auth accounts may already exist. Please try again — orphaned accounts have been cleaned up.");
+        } else if (created.length < validStudents.length) {
+          toast.warning(`${created.length} of ${validStudents.length} students created. Some may have had duplicate credentials.`);
+        } else {
+          toast.success(`All ${created.length} student(s) created successfully!`);
+        }
+      } catch (err) {
+        console.error("Bulk upload error:", err);
+        toast.error("Bulk upload failed. Please try again.");
+      }
       setBulkPreview([]);
       setShowBulkUpload(false);
       setIsSubmitting(false);

@@ -188,23 +188,60 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const school = schools.find(s => s.user_id === bulkData[0]?.schoolId);
     const actualSchoolId = school?.id || bulkData[0]?.schoolId;
 
+    // Build payload with unique usernames using timestamp to avoid collisions
+    const timestamp = Date.now();
     const usersPayload = bulkData.map((d, i) => ({
-      email: usernameToEmail(d.customUsername || generateUsername("std", d.name, students.length + i + 1)),
+      email: usernameToEmail(d.customUsername || generateUsername("std", d.name, timestamp + i)),
       password: d.customPassword || generatePassword(),
       role: "student",
       metadata: { display_name: d.name },
     }));
 
+    // First cleanup any orphaned student auth users from previous failed attempts
+    await supabase.functions.invoke("manage-users", {
+      body: { action: "cleanup_orphaned_student_users" },
+    });
+
     const { data: result, error } = await supabase.functions.invoke("manage-users", {
       body: { action: "create_users_bulk", users: usersPayload },
     });
-    if (error || !result?.users) { console.error("Bulk create failed:", error || result?.errors); return []; }
+    
+    if (error) { console.error("Bulk create failed:", error); return []; }
+    
+    const createdUsers = result?.users || [];
+    const bulkErrors = result?.errors || [];
+    
+    if (bulkErrors.length > 0) {
+      console.warn("Bulk creation errors:", bulkErrors);
+    }
+    
+    if (createdUsers.length === 0) { 
+      console.error("No users created. Errors:", bulkErrors);
+      return []; 
+    }
 
-    const inserts = result.users.map((u: any, i: number) => ({
-      user_id: u.id, school_id: actualSchoolId, teacher_id: bulkData[i].teacherId,
-      name: bulkData[i].name, father_name: bulkData[i].fatherName,
-      class: bulkData[i].class, section: bulkData[i].section, roll_no: bulkData[i].rollNo,
-    }));
+    // Map created auth users back to bulkData by email
+    const emailToBulkIndex = new Map<string, number>();
+    usersPayload.forEach((p, i) => emailToBulkIndex.set(p.email.toLowerCase(), i));
+
+    const inserts: any[] = [];
+    const matchedPayloads: typeof usersPayload = [];
+    
+    for (const u of createdUsers) {
+      const email = (u.email || "").toLowerCase();
+      const bulkIdx = emailToBulkIndex.get(email);
+      if (bulkIdx === undefined) continue;
+      
+      const d = bulkData[bulkIdx];
+      inserts.push({
+        user_id: u.id, school_id: actualSchoolId, teacher_id: d.teacherId,
+        name: d.name, father_name: d.fatherName,
+        class: d.class, section: d.section, roll_no: d.rollNo,
+      });
+      matchedPayloads.push(usersPayload[bulkIdx]);
+    }
+
+    if (inserts.length === 0) { return []; }
 
     const { data: created, error: ie } = await supabase.from("students").insert(inserts).select();
     if (ie) { console.error("Bulk insert failed:", ie); return []; }
@@ -212,10 +249,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await fetchData();
     return (created || []).map((s, i) => ({
       ...mapStudent(s),
-      username: usersPayload[i].email.replace("@codechamps.local", ""),
-      password: usersPayload[i].password,
+      username: matchedPayloads[i]?.email.replace("@codechamps.local", "") || "",
+      password: matchedPayloads[i]?.password || "",
     }));
-  }, [students.length, schools, fetchData]);
+  }, [schools, fetchData]);
 
   const updateSchool = useCallback(async (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => {
     const school = schools.find(s => s.user_id === schoolId);

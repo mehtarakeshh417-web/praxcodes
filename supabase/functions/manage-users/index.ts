@@ -208,7 +208,6 @@ Deno.serve(async (req) => {
     if (action === "change_password") {
       const { user_id, new_password } = body;
       
-      // Users can change their own password, admins can change anyone's
       if (caller.id !== user_id && !isAdmin) {
         return new Response(JSON.stringify({ error: "Can only change your own password" }), {
           status: 403,
@@ -225,6 +224,42 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "cleanup_orphaned_student_users") {
+      // Find auth users with student role but no matching student record
+      const { data: studentRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "student");
+      
+      if (!studentRoles || studentRoles.length === 0) {
+        return new Response(JSON.stringify({ deleted: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: existingStudents } = await supabase
+        .from("students")
+        .select("user_id");
+      
+      const existingUserIds = new Set((existingStudents || []).map((s: any) => s.user_id).filter(Boolean));
+      const orphanIds = studentRoles
+        .map((r: any) => r.user_id)
+        .filter((uid: string) => !existingUserIds.has(uid));
+
+      let deleted = 0;
+      for (const uid of orphanIds) {
+        const { error } = await supabase.auth.admin.deleteUser(uid);
+        if (!error) {
+          await supabase.from("user_roles").delete().eq("user_id", uid);
+          deleted++;
+        }
+      }
+
+      return new Response(JSON.stringify({ deleted, total_orphans: orphanIds.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
