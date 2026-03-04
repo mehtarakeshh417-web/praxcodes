@@ -89,7 +89,7 @@ interface DataContextType {
   addSchool: (school: { name: string; address: string; state: string; city: string; phone: string; username: string; password: string }) => Promise<SchoolData | null>;
   addTeacher: (data: { firstName: string; lastName: string; classes: string[]; schoolId: string }, customUsername?: string, customPassword?: string) => Promise<TeacherData | null>;
   addStudent: (data: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string }, customUsername?: string, customPassword?: string) => Promise<StudentData | null>;
-  addStudentsBulk: (students: { name: string; fatherName: string; class: string; section: string; rollNo: string; teacherId: string; schoolId: string; customUsername?: string; customPassword?: string }[]) => Promise<BulkUploadResult>;
+  
   updateSchool: (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => Promise<void>;
   getSchool: (schoolId: string) => SchoolData | undefined;
   updateTeacher: (teacherId: string, data: Partial<{ firstName: string; lastName: string; classes: string[] }>) => Promise<void>;
@@ -399,7 +399,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{
       schools, teachers, students, loading,
-      addSchool, addTeacher, addStudent, addStudentsBulk,
+      addSchool, addTeacher, addStudent,
       updateSchool, getSchool, updateTeacher, updateStudent,
       deleteSchool, deleteTeacher, deleteStudent,
       getSchoolTeachers, getSchoolStudents, getTeacherStudents,
