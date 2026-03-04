@@ -1,0 +1,1 @@
+ALTER TABLE public.schools ALTER COLUMN sections SET DEFAULT ARRAY['A','B','C','D','E']::text[];
