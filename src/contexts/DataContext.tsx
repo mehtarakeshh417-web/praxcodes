@@ -218,9 +218,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [students.length, schools, fetchData]);
 
   const updateSchool = useCallback(async (schoolId: string, data: Partial<Pick<SchoolData, "name" | "address" | "state" | "city" | "phone" | "sections">>) => {
-    await supabase.from("schools").update(data).eq("id", schoolId);
+    const school = schools.find(s => s.user_id === schoolId);
+    const actualId = school?.id || schoolId;
+    await supabase.from("schools").update(data).eq("id", actualId);
     await fetchData();
-  }, [fetchData]);
+  }, [schools, fetchData]);
 
   const getSchool = useCallback((schoolId: string) => {
     return schools.find(s => s.id === schoolId || s.user_id === schoolId);
