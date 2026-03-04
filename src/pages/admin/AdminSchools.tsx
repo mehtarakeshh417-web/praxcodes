@@ -1,16 +1,15 @@
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useData } from "@/contexts/DataContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { School, Plus, X, Eye, EyeOff, Trash2, Filter, MapPin } from "lucide-react";
+import { School, Plus, X, Eye, EyeOff, Trash2, Filter, MapPin, ChevronDown, Users, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { INDIAN_STATES, MAJOR_CITIES } from "@/lib/indianStates";
 
 const AdminSchools = () => {
-  const { schools, addSchool, deleteSchool } = useData();
+  const { schools, teachers, students, addSchool, deleteSchool } = useData();
   const [showForm, setShowForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
@@ -19,6 +18,8 @@ const AdminSchools = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [customCity, setCustomCity] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedSchools, setExpandedSchools] = useState<Set<string>>(new Set());
+  const [expandedTeachers, setExpandedTeachers] = useState<Set<string>>(new Set());
 
   const filteredSchools = useMemo(() => {
     return schools.filter((s) => {
@@ -38,9 +39,26 @@ const AdminSchools = () => {
     return [...new Set(schools.map((s) => s.city))].sort();
   }, [filterState, schools]);
 
-  const formCities = useMemo(() => {
-    return MAJOR_CITIES[form.state] || [];
-  }, [form.state]);
+  const formCities = useMemo(() => MAJOR_CITIES[form.state] || [], [form.state]);
+
+  const toggleSchool = (id: string) => {
+    setExpandedSchools(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleTeacher = (id: string) => {
+    setExpandedTeachers(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const getSchoolTeachers = (schoolId: string) => teachers.filter(t => t.schoolId === schoolId);
+  const getTeacherStudents = (teacherId: string) => students.filter(s => s.teacherId === teacherId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +68,7 @@ const AdminSchools = () => {
       return;
     }
     setIsSubmitting(true);
-    const submitData = { ...form, city: finalCity };
-    const school = await addSchool(submitData);
+    const school = await addSchool({ ...form, city: finalCity });
     if (school) {
       toast.success(`School "${form.name}" created! Login: ${form.username}`);
       setForm({ name: "", address: "", state: "", city: "", phone: "", username: "", password: "" });
@@ -95,25 +112,20 @@ const AdminSchools = () => {
           )}
         </div>
         <div className="grid md:grid-cols-3 gap-3">
-          <div>
-            <select value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterCity(""); }} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
-              <option value="" className="bg-cyber-dark">All States</option>
-              {uniqueStates.map((s) => <option key={s} value={s} className="bg-cyber-dark">{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterState && availableCities.length === 0} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm disabled:opacity-40">
-              <option value="" className="bg-cyber-dark">All Cities</option>
-              {availableCities.map((c) => <option key={c} value={c} className="bg-cyber-dark">{c}</option>)}
-            </select>
-          </div>
+          <select value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterCity(""); }} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm">
+            <option value="" className="bg-cyber-dark">All States</option>
+            {uniqueStates.map((s) => <option key={s} value={s} className="bg-cyber-dark">{s}</option>)}
+          </select>
+          <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterState && availableCities.length === 0} className="w-full rounded-lg bg-white/10 border border-white/20 text-white px-3 py-2 text-sm disabled:opacity-40">
+            <option value="" className="bg-cyber-dark">All Cities</option>
+            {availableCities.map((c) => <option key={c} value={c} className="bg-cyber-dark">{c}</option>)}
+          </select>
           <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name..." className="bg-white/10 border-white/20 text-white placeholder:text-white/40" />
         </div>
-        <div className="mt-2 text-xs text-white/40 font-body">
-          Showing {filteredSchools.length} of {schools.length} school(s)
-        </div>
+        <div className="mt-2 text-xs text-white/40 font-body">Showing {filteredSchools.length} of {schools.length} school(s)</div>
       </motion.div>
 
+      {/* Create Form */}
       {showForm && (
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -176,6 +188,7 @@ const AdminSchools = () => {
         </motion.div>
       )}
 
+      {/* Schools List - Expandable */}
       {filteredSchools.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card p-12 text-center">
           <School className="w-16 h-16 text-white/30 mx-auto mb-4" />
@@ -183,31 +196,131 @@ const AdminSchools = () => {
           <p className="text-white/35 font-body text-sm">{schools.length === 0 ? 'Click "Create School" to get started' : "Try adjusting your filters"}</p>
         </motion.div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSchools.map((school, i) => (
-            <motion.div key={school.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center shrink-0">
-                    <School className="w-5 h-5 text-cyber-darker" />
+        <div className="space-y-3">
+          {filteredSchools.map((school, i) => {
+            const schoolTeachers = getSchoolTeachers(school.id);
+            const isExpanded = expandedSchools.has(school.id);
+
+            return (
+              <motion.div key={school.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card overflow-hidden">
+                {/* School Header - Clickable */}
+                <button
+                  onClick={() => toggleSchool(school.id)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-blue to-neon-green flex items-center justify-center shrink-0">
+                      <School className="w-5 h-5 text-cyber-darker" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-white">{school.name}</h3>
+                      <p className="text-white/50 text-xs font-body flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {school.city}{school.state ? `, ${school.state}` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-display font-bold text-white">{school.name}</h3>
-                    <p className="text-white/50 text-xs font-body flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {school.city}{school.state ? `, ${school.state}` : ""}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4 text-xs text-white/50 font-body mr-2">
+                      <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {schoolTeachers.length} teacher{schoolTeachers.length !== 1 ? "s" : ""}</span>
+                      <span className="flex items-center gap-1"><GraduationCap className="w-3.5 h-3.5" /> {students.filter(s => s.schoolId === school.id).length} student{students.filter(s => s.schoolId === school.id).length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={(e) => { e.stopPropagation(); handleDelete(school.id, school.name); }}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                    <ChevronDown className={`w-5 h-5 text-white/40 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
                   </div>
-                </div>
-                <Button variant="ghost" size="icon" className="text-white/30 hover:text-destructive shrink-0" onClick={() => handleDelete(school.id, school.name)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="space-y-1.5 text-sm text-white/60 font-body">
-                <p>📍 {school.address}</p>
-                <p>📞 {school.phone}</p>
-              </div>
-            </motion.div>
-          ))}
+                </button>
+
+                {/* Expanded: School Details + Teachers */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-5 pb-4 border-t border-white/10">
+                        {/* School info */}
+                        <div className="py-3 space-y-1 text-sm text-white/60 font-body">
+                          <p>📍 {school.address}</p>
+                          <p>📞 {school.phone}</p>
+                        </div>
+
+                        {/* Teachers */}
+                        <div className="mt-2">
+                          <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-wider mb-2">Teachers ({schoolTeachers.length})</h4>
+                          {schoolTeachers.length === 0 ? (
+                            <p className="text-white/30 text-sm font-body pl-4">No teachers added yet</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {schoolTeachers.map(teacher => {
+                                const teacherStudents = getTeacherStudents(teacher.id);
+                                const isTeacherExpanded = expandedTeachers.has(teacher.id);
+
+                                return (
+                                  <div key={teacher.id} className="rounded-lg bg-white/5 overflow-hidden">
+                                    {/* Teacher row - clickable */}
+                                    <button
+                                      onClick={() => toggleTeacher(teacher.id)}
+                                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-neon-blue/70" />
+                                        <span className="text-sm font-body text-white/80">{teacher.firstName} {teacher.lastName}</span>
+                                        {teacher.classes.length > 0 && (
+                                          <span className="text-xs text-white/40">({teacher.classes.join(", ")})</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-white/40 font-body">{teacherStudents.length} student{teacherStudents.length !== 1 ? "s" : ""}</span>
+                                        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-200 ${isTeacherExpanded ? "rotate-180" : ""}`} />
+                                      </div>
+                                    </button>
+
+                                    {/* Expanded: Students under this teacher */}
+                                    <AnimatePresence>
+                                      {isTeacherExpanded && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: "auto", opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.15 }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="px-4 pb-3 border-t border-white/5">
+                                            {teacherStudents.length === 0 ? (
+                                              <p className="text-white/25 text-xs font-body pt-2 pl-6">No students assigned</p>
+                                            ) : (
+                                              <div className="pt-2 space-y-1">
+                                                {teacherStudents.map(student => (
+                                                  <div key={student.id} className="flex items-center gap-2 pl-6 py-1">
+                                                    <GraduationCap className="w-3.5 h-3.5 text-neon-green/60" />
+                                                    <span className="text-xs font-body text-white/60">{student.name}</span>
+                                                    <span className="text-xs text-white/30">— Class {student.class}{student.section ? `-${student.section}` : ""}</span>
+                                                    {student.rollNo && <span className="text-xs text-white/20">Roll #{student.rollNo}</span>}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>
