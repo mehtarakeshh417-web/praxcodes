@@ -265,22 +265,27 @@ const SchoolStudents = () => {
     if (validStudents.length > 0) {
       setIsSubmitting(true);
       try {
-        const created = await addStudentsBulk(validStudents.map(s => ({
+        const result = await addStudentsBulk(validStudents.map(s => ({
           name: s.name, fatherName: s.fatherName, class: s.class, section: s.section,
           rollNo: s.rollNo, teacherId: s.teacherId, schoolId: s.schoolId,
           customUsername: s.customUsername, customPassword: s.customPassword,
         })));
 
-        if (created.length === 0) {
-          toast.error("Failed to create students. Auth accounts may already exist. Please try again — orphaned accounts have been cleaned up.");
-        } else if (created.length < validStudents.length) {
-          toast.warning(`${created.length} of ${validStudents.length} students created. Some may have had duplicate credentials.`);
-        } else {
-          toast.success(`All ${created.length} student(s) created successfully!`);
+        const { created, errors: backendErrors } = result;
+        const allErrors = [...errors, ...backendErrors];
+
+        if (created.length === 0 && allErrors.length > 0) {
+          // Show first 5 errors in a readable format
+          const errorSummary = allErrors.slice(0, 5).join("\n• ");
+          toast.error(`Could not create any students:\n• ${errorSummary}`, { duration: 10000 });
+        } else if (created.length > 0 && allErrors.length > 0) {
+          toast.warning(`${created.length} of ${validStudents.length} students created successfully. ${allErrors.length} had issues.`, { duration: 8000 });
+        } else if (created.length > 0) {
+          toast.success(`All ${created.length} student(s) created successfully! 🎉`);
         }
       } catch (err) {
         console.error("Bulk upload error:", err);
-        toast.error("Bulk upload failed. Please try again.");
+        toast.error("Something went wrong during upload. Please try again.");
       }
       setBulkPreview([]);
       setShowBulkUpload(false);
