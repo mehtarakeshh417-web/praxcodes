@@ -86,23 +86,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem("cc_teachers");
     localStorage.removeItem("cc_students");
 
+    let initialSessionHandled = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const authUser = await buildAuthUser(session.user);
-        setUser(authUser);
-      } else {
+      if (event === 'INITIAL_SESSION') {
+        initialSessionHandled = true;
+        if (session?.user) {
+          const authUser = await buildAuthUser(session.user);
+          setUser(authUser);
+        }
+        setLoading(false);
+      } else if (event === 'SIGNED_IN') {
+        if (session?.user) {
+          const authUser = await buildAuthUser(session.user);
+          setUser(authUser);
+        }
+        setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const authUser = await buildAuthUser(session.user);
-        setUser(authUser);
+    // Fallback if INITIAL_SESSION doesn't fire
+    setTimeout(() => {
+      if (!initialSessionHandled) {
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+          if (session?.user) {
+            const authUser = await buildAuthUser(session.user);
+            setUser(authUser);
+          }
+          setLoading(false);
+        });
       }
-      setLoading(false);
-    });
+    }, 500);
 
     return () => subscription.unsubscribe();
   }, []);
